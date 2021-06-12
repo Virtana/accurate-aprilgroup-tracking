@@ -1,3 +1,7 @@
+'''
+Custom logging module to create and store logs
+'''
+
 import logging
 import sys
 from logging import Logger
@@ -25,11 +29,17 @@ class CustomLogger(Logger):
         self.propagate = False
 
     def get_console_handler(self):
+        '''
+        Format logs on the console.
+        '''
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(self.formatter)
         return console_handler
 
     def get_file_handler(self):
+        '''
+        Format logs on the file.
+        '''
         file_handler = TimedRotatingFileHandler(self.log_file, when="midnight")
         file_handler.setFormatter(self.formatter)
         return file_handler
