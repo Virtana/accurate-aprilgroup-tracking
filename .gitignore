@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Specific folders and files
+aprilgroup_tracking/calibration/images/
+aprilgroup_tracking/calibration/CameraParams.npz
+logs/camera_calibration_logs
+
