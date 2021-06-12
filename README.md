@@ -97,6 +97,7 @@ Execute the program
 - Calibrate you camera by running:
 
 ```bash
+# Assumming you are in the directory: accurate-aprilgroup-tracking
 $ python3 aprilgroup_tracking/calibration/calibrate_camera.py
 ```
 
