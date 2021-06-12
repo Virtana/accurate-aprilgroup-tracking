@@ -156,6 +156,8 @@ class Calibration:
 
 def main():
 
+    # Create a folder called "logs"
+    os.mkdir("logs")
     logger = logger_module.CustomLogger(log_file="logs/camera_calibration_logs", name ="camera_calibration_logs")
 
     calibrate = Calibration(logger)

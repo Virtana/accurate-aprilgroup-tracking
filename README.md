@@ -91,8 +91,10 @@ Install [OpenCV](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubun
 
 **Step 5**\
 Execute the program
-- Take images of your chessboard with your USB camera and store these images under the folder: ***aprilgroup_tracking/calibration/images/***
-- Calibrate you camera by running
+- Take images of your chessboard with your USB camera 
+- Create a folder named "***images***" under the directory: ***aprilgroup_tracking/calibration/***
+- Store your images under this folder
+- Calibrate you camera by running:
 
 ```bash
 $ python3 aprilgroup_tracking/calibration/calibrate_camera.py
