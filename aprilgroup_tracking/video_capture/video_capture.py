@@ -6,7 +6,6 @@ import cv2
 
 
 class VideoCapture:
-
     def __init__(self, video_source=0):
         self.video_capture = cv2.VideoCapture(video_source)
         if not self.video_capture.isOpened():

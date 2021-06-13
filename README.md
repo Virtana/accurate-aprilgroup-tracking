@@ -114,7 +114,8 @@ Execute the program
 - Take images of your chessboard with your USB camera 
 - Create a folder named "***images***" under the directory: ***aprilgroup_tracking/calibration/***
 - Store your images under this folder
-- Obtain the Calibrated Dodecahedron and it's information (measured tag sizes, rotation and translation vectors)
+- Obtain the Calibrated Dodecahedron and it's information (measured tag sizes, rotation and translation vectors) as a ***.json*** file
+- Store this ***.json*** file under the directory: ***aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json***
 - Calibrate, Detect and Estimate the pose of the Dodecahedron by running:
 
 ```bash

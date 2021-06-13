@@ -28,13 +28,11 @@ def main():
     calibrate = Calibration(calibration_logger)
     if calibrate.try_load_intrinsic():
         mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
-        print(mtx)
     else:
         calibrate.start_intrinsic_calibration()
         calibrate.calculate_intrinsic()
         calibrate.load_intrinsic()
         mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
-        print(mtx)
 
     # Detect and Estimate Pose of the Dodecahedron
     det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
