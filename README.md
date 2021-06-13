@@ -41,8 +41,8 @@ You will need:
 - AprilTags which can be downloaded through [here](https://github.com/AprilRobotics/apriltag-imgs/), or you can create your own using [this package](https://github.com/AprilRobotics/apriltag-generation).
 - [Calibrated Dodecahedron with the AprilTags attached](http://media.ee.ntu.edu.tw/research/DodecaPen/)
     - The Calibrated Dodecahedron comes with measured tag sizes, rotation and translation vectors, <br/>
-    that described how all the tags attached to the dodecahedron form an AprilGroup. This information is needed to run this project, <br/>
-    but has been ommited due to confidentiality. 
+    that described how all the tags attached to the dodecahedron form an AprilGroup. <br/>
+    This information is needed to run this project, but has been ommited due to confidentiality. 
 - USB Camera 
 
 ### Project Installation
@@ -96,14 +96,14 @@ $ pip3 install -r requirements.txt
 **Step 4**\
 Install [OpenCV](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html) and the [AprilTag library](https://github.com/swatbotics/apriltag)
 
-If you are using the Python virtual environment, link these libraries to the environment:
+**If you are using the Python virtual environment, link these libraries to the environment:**
 
 ```bash
 cd ~/venv/lib/python3.[your python3 version number]/site-packages/
 ln -s /usr/lib/python3/dist-packages/cv2.cpython-38-x86_64-linux-gnu.so cv2.so
 ln -s /usr/local/lib/libapriltag.so
 ```
-These were the locations the libraries downloaded for me, but they typically download under /usr/local/lib/python3.[your python3 version number]. <br/>
+These were the locations the libraries downloaded for me, but they typically download under ***/usr/local/lib/python3.[your python3 version number]***. <br/><br/>
 See [here for more details.](https://stackoverflow.com/questions/37188623/ubuntu-how-to-install-opencv-for-python3)
 After linking, add the ***apriltag.py*** file obtained from installation, to the same directory: ***venv/lib/python3.8/site-packages/***
 

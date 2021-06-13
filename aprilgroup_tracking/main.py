@@ -1,4 +1,7 @@
 '''
+The main.py will call all the necessary functionality for this project.
+So far it calibrates the camera, detects the apriltags and estimates the pose of the aprilgroup, drawing, it onto
+an OpenCV window.
 '''
 import os
 from logging_results.create_logs import CustomLogger
@@ -41,6 +44,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
-    # TODO Add a utils class? with normal utils and detect markers utils (have draws, rotate functions, overlay camera function)
