@@ -14,15 +14,9 @@ Important when taking images:
 '''
 
 import numpy as np
-import cv2 as cv
+import cv2
 import os
 from pathlib import Path
-import importlib.util
-
-
-spec = importlib.util.spec_from_file_location("create_logs", "aprilgroup_tracking/logging/create_logs.py")
-logger_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(logger_module)
 
 
 class Calibration:
@@ -53,9 +47,7 @@ class Calibration:
         '''
         try:
             self.logger.info("Trying to retrieve last intrinsic calibration parameters.")
-
-            with np.load(self.INTRINSIC_PARAMETERS_FILE) as file:
-                self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in ('cameraMatrix','dist','rvecs','tvecs')]
+            self.load_intrinsic()
         except IOError:
             self.logger.info("Could not load previous intrinsic parameters.")
             return False
@@ -70,7 +62,7 @@ class Calibration:
         '''
 
         # Termination Criteria
-        self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+        self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         # Prepare object points, e.g. (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
         self.objp = np.zeros((self.chessboardSize[0] * self.chessboardSize[1], 3), np.float32)
@@ -88,6 +80,14 @@ class Calibration:
         '''
         np.savez(self.INTRINSIC_PARAMETERS_FILE, cameraMatrix=self.cameraMatrix, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
 
+    
+    def load_intrinsic(self):
+        '''
+        Loads the Camera Parameters
+        '''
+        with np.load(self.INTRINSIC_PARAMETERS_FILE) as file:
+            self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in ('cameraMatrix','dist','rvecs','tvecs')]
+
 
     def calculate_intrinsic(self):
         '''
@@ -103,28 +103,28 @@ class Calibration:
         for path, _, files in os.walk(dirpath):
             for file in files:
                 filepath = Path(path) / file
-                img = cv.imread(str(filepath))
-                gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+                img = cv2.imread(str(filepath))
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
                 # Find the chess board corners
-                ret, corners = cv.findChessboardCorners(gray, self.chessboardSize, None)
+                ret, corners = cv2.findChessboardCorners(gray, self.chessboardSize, None)
 
                 # If found, add object points, image points (after refining them)
                 if ret == True:
 
                     self.objpoints.append(self.objp)
                     # Finding corners in sub pixels
-                    corners2 = cv.cornerSubPix(gray, corners, (11,11), (-1,-1), self.criteria)
+                    corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), self.criteria)
                     self.imgpoints.append(corners)
 
                     # Draw and display the corners
-                    cv.drawChessboardCorners(img, self.chessboardSize, corners2, ret)
-                    cv.imshow('img', img)
-                    cv.waitKey(1000) # Wait 1 sec, then go to other image.
+                    cv2.drawChessboardCorners(img, self.chessboardSize, corners2, ret)
+                    cv2.imshow('img', img)
+                    cv2.waitKey(1000) # Wait 1 sec, then go to other image.
 
-            cv.destroyAllWindows()
+            cv2.destroyAllWindows()
 
-        ret, self.cameraMatrix, self.dist, self.rvecs, self.tvecs = cv.calibrateCamera(self.objpoints, self.imgpoints, self.frameSize, None, None)
+        ret, self.cameraMatrix, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objpoints, self.imgpoints, self.frameSize, None, None)
 
         self.logger.info("Camera Calibrated: {}".format(ret))
         self.logger.info("\nCamera Matrix:\n {}".format(self.cameraMatrix))
@@ -147,31 +147,11 @@ class Calibration:
         mean_error = 0
 
         for i in range(len(self.objpoints)):
-            imgpoints2, _ = cv.projectPoints(self.objpoints[i], self.rvecs[i], self.tvecs[i], self.cameraMatrix, self.dist)
-            error = cv.norm(self.imgpoints[i], imgpoints2, cv.NORM_L2)/len(imgpoints2)
+            imgpoints2, _ = cv2.projectPoints(self.objpoints[i], self.rvecs[i], self.tvecs[i], self.cameraMatrix, self.dist)
+            error = cv2.norm(self.imgpoints[i], imgpoints2, cv2.NORM_L2)/len(imgpoints2)
             mean_error += error
 
         self.logger.info("Total error: {}".format(mean_error/len(self.objpoints)))
-
-
-def main():
-
-    # Create a folder called "logs"
-    os.mkdir("logs")
-    logger = logger_module.CustomLogger(log_file="logs/camera_calibration_logs", name ="camera_calibration_logs")
-
-    calibrate = Calibration(logger)
-    if calibrate.try_load_intrinsic():
-        mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
-        print(mtx)
-    else:
-        calibrate.start_intrinsic_calibration()
-        calibrate.calculate_intrinsic()
-
-
-if __name__ == "__main__":
-    main()
-
     
 
 
