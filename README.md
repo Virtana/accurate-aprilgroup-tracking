@@ -100,11 +100,13 @@ Install [OpenCV](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubun
 
 ```bash
 cd ~/venv/lib/python3.[your python3 version number]/site-packages/
+# Linking OpenCV library
 ln -s /usr/lib/python3/dist-packages/cv2.cpython-38-x86_64-linux-gnu.so cv2.so
+# Linking AprilTag library
 ln -s /usr/local/lib/libapriltag.so
 ```
 These were the locations the libraries downloaded for me, but they typically download under ***/usr/local/lib/python3.[your python3 version number]***. <br/><br/>
-See [here for more details.](https://stackoverflow.com/questions/37188623/ubuntu-how-to-install-opencv-for-python3)
+See [here for more details regarding OpenCV library.](https://stackoverflow.com/questions/37188623/ubuntu-how-to-install-opencv-for-python3)
 After linking, add the ***apriltag.py*** file obtained from installation, to the same directory: ***venv/lib/python3.8/site-packages/***
 
 **Step 5**\
