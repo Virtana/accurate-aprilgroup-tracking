@@ -17,6 +17,8 @@ import numpy as np
 import cv2
 import os
 from pathlib import Path
+from logging import Logger
+from typing import List, Tuple
 
 
 class Calibration:
@@ -24,17 +26,17 @@ class Calibration:
     _IMAGES_FOLDER = "aprilgroup_tracking/calibration/images"
 
 
-    def __init__(self, logger):
+    def __init__(self, logger: Logger) -> None:
         self.logger = logger
-        self.mtx = None
-        self.dist = None
-        self.rvecs = None
-        self.tvecs = None
-        self.chessboardSize = (9,6) # Width, Height
-        self.frameSize = (1280,720) # Pixel size of Camera
-        self.criteria = None
-        self.objpoints = None
-        self.imgpoints = None
+        self.mtx: np.ndarray
+        self.dist: np.ndarray
+        self.rvecs: np.ndarray 
+        self.tvecs: np.ndarray
+        self.chessboardSize: Tuple[int, int] = (9,6) # Width, Height
+        self.frameSize: Tuple[int, int] = (1280,720) # Pixel size of Camera
+        self.criteria: Tuple[float, int, float]
+        self.objpoints: List[object] = [] 
+        self.imgpoints: List[object] = [] 
 
 
     def try_load_intrinsic(self) -> bool:
@@ -65,7 +67,7 @@ class Calibration:
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         # Prepare object points, e.g. (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-        objp = np.zeros((self.chessboardSize[0] * self.chessboardSize[1], 3), np.float32)
+        objp:np.ndarray = np.zeros((self.chessboardSize[0] * self.chessboardSize[1], 3), np.float32)
         objp[:, :2] = np.mgrid[0:self.chessboardSize[0],0:self.chessboardSize[1]].T.reshape(-1,2)
 
         # Arrays to store object points and image points from all the images.
@@ -80,14 +82,14 @@ class Calibration:
         ''' 
         Save Camera Parameters
         '''
-        np.savez(self.INTRINSIC_PARAMETERS_FILE, cameraMatrix=self.cameraMatrix, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
+        np.savez(self._INTRINSIC_PARAMETERS_FILE, cameraMatrix=self.cameraMatrix, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
 
     
     def load_intrinsic(self) -> None:
         '''
         Loads the Camera Parameters
         '''
-        with np.load(self.INTRINSIC_PARAMETERS_FILE) as file:
+        with np.load(self._INTRINSIC_PARAMETERS_FILE) as file:
             self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in ('cameraMatrix','dist','rvecs','tvecs')]
 
 
@@ -101,7 +103,7 @@ class Calibration:
         objp = self.start_intrinsic_calibration()
 
         # Get all images in directory here.
-        dirpath = self.IMAGES_FOLDER
+        dirpath = self._IMAGES_FOLDER
 
         # Loop through all images, do oberations on images and 
         # store the image points to do calibration and undistort the images later on.

@@ -11,11 +11,12 @@ from logging.handlers import TimedRotatingFileHandler
 class CustomLogger(Logger):
     def __init__(
         self,
-        log_file=None,
-        log_format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        log_file: str = None,
+        log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         *args,
         **kwargs
-    ):
+    ) -> None:
+
         self.formatter = logging.Formatter(log_format)
         self.log_file = log_file
 
