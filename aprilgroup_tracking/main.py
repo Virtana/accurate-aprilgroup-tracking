@@ -25,15 +25,11 @@ def main():
 
     # If Camera Parameters already exists, load them, else calculate them by calibrating the camera.
     calibrate = Calibration(calibration_logger)
-    if calibrate.try_load_intrinsic():
-        mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
-        print(mtx)
-    else:
-        calibrate.start_intrinsic_calibration()
+    if not calibrate.try_load_intrinsic():
         calibrate.calculate_intrinsic()
         calibrate.load_intrinsic()
-        mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
-        print(mtx)
+    mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
+    print(mtx)
 
 
 if __name__ == "__main__":

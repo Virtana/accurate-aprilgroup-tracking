@@ -20,8 +20,8 @@ from pathlib import Path
 
 
 class Calibration:
-    INTRINSIC_PARAMETERS_FILE = "aprilgroup_tracking/calibration/CameraParams.npz"
-    IMAGES_FOLDER = "aprilgroup_tracking/calibration/images"
+    _INTRINSIC_PARAMETERS_FILE = "aprilgroup_tracking/calibration/CameraParams.npz"
+    _IMAGES_FOLDER = "aprilgroup_tracking/calibration/images"
 
 
     def __init__(self, logger):
@@ -34,7 +34,6 @@ class Calibration:
         self.chessboardSize = (9,6) # Width, Height
         self.frameSize = (1280,720) # Pixel size of Camera
         self.criteria = None
-        self.objp = None
         self.objpoints = None
         self.imgpoints = None
 
@@ -59,29 +58,33 @@ class Calibration:
     def start_intrinsic_calibration(self):
         '''
         Initiate calibration of the camera to obtain intrinsic values.
+
+        :return: objp: Object Points of chessboard
         '''
 
         # Termination Criteria
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         # Prepare object points, e.g. (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-        self.objp = np.zeros((self.chessboardSize[0] * self.chessboardSize[1], 3), np.float32)
-        self.objp[:, :2] = np.mgrid[0:self.chessboardSize[0],0:self.chessboardSize[1]].T.reshape(-1,2)
+        objp = np.zeros((self.chessboardSize[0] * self.chessboardSize[1], 3), np.float32)
+        objp[:, :2] = np.mgrid[0:self.chessboardSize[0],0:self.chessboardSize[1]].T.reshape(-1,2)
 
         # Arrays to store object points and image points from all the images.
         self.objpoints = []  # 3d point in real world space
         self.imgpoints = []  # 2d points in image plane.
         self.logger.info("Starting Intrinsic calibration.")
 
+        return objp
 
-    def save_intrinsic(self):
+
+    def save_intrinsic(self) -> None:
         ''' 
         Save Camera Parameters
         '''
         np.savez(self.INTRINSIC_PARAMETERS_FILE, cameraMatrix=self.cameraMatrix, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
 
     
-    def load_intrinsic(self):
+    def load_intrinsic(self) -> None:
         '''
         Loads the Camera Parameters
         '''
@@ -89,11 +92,14 @@ class Calibration:
             self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in ('cameraMatrix','dist','rvecs','tvecs')]
 
 
-    def calculate_intrinsic(self):
+    def calculate_intrinsic(self) -> None:
         '''
         Calculate the intrisic values of the camera based on the chessboard size, criteria and object points.
         Save them to a .npz file.
         '''
+
+        # Start the camera calibration
+        objp = self.start_intrinsic_calibration()
 
         # Get all images in directory here.
         dirpath = self.IMAGES_FOLDER
@@ -112,7 +118,7 @@ class Calibration:
                 # If found, add object points, image points (after refining them)
                 if ret == True:
 
-                    self.objpoints.append(self.objp)
+                    self.objpoints.append(objp)
                     # Finding corners in sub pixels
                     corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), self.criteria)
                     self.imgpoints.append(corners)
@@ -138,7 +144,7 @@ class Calibration:
         self.logger.info("Intrinsic Parameters have been saved!")
 
 
-    def get_reprojection_error(self):
+    def get_reprojection_error(self) -> None:
         '''
         Obtains the reprojection error after camera calibration. The lower the error, the better calibrated the camera.
         Values should range from ...
