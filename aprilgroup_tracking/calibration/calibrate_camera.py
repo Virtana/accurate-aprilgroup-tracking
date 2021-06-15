@@ -56,7 +56,7 @@ class Calibration:
         return True
 
 
-    def start_intrinsic_calibration(self):
+    def start_intrinsic_calibration(self) -> np.ndarray:
         '''
         Initiate calibration of the camera to obtain intrinsic values.
 
