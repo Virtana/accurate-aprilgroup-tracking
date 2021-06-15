@@ -30,7 +30,6 @@ class Calibration:
         self.dist = None
         self.rvecs = None
         self.tvecs = None
-
         self.chessboardSize = (9,6) # Width, Height
         self.frameSize = (1280,720) # Pixel size of Camera
         self.criteria = None
