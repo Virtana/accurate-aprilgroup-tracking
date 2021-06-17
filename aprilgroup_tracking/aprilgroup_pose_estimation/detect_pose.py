@@ -126,15 +126,51 @@ class DetectAndGetPose:
             cv2.line(self.img, self.imgpts[i], self.imgpts[j], (0, 255, 0), 1, 16)
 
 
+    def draw_squares(self, detections):
+        '''
+        Extract the bounding box (x, y)-coordinates for the AprilTag
+        and convert each of the (x, y)-coordinate pairs to integers
+
+        :param: img: Original picture data
+        :param: detections: AprilTag detections found via the AprilTag library
+
+        :output: Bounding box with center point and tag id shown overlay on each AprilTag detection.
+        '''
+
+        # For all detections, get the corners and draw the bounding box, center and tag id
+        for detection in detections:
+
+            # AprilTag Corners (Image Points)
+            (ptA, ptB, ptC, ptD) = detection.corners
+            ptB = (int(ptB[0]), int(ptB[1]))
+            ptC = (int(ptC[0]), int(ptC[1]))
+            ptD = (int(ptD[0]), int(ptD[1]))
+            ptA = (int(ptA[0]), int(ptA[1]))
+
+            # Draw the bounding box of the AprilTag detection
+            cv2.line(self.img, ptA, ptB, (0, 255, 0), 2)
+            cv2.line(self.img, ptB, ptC, (0, 255, 0), 2)
+            cv2.line(self.img, ptC, ptD, (0, 255, 0), 2)
+            cv2.line(self.img, ptD, ptA, (0, 255, 0), 2)
+
+            # Draw the center (x, y)-coordinates of the AprilTag
+            (cX, cY) = (int(detection.center[0]), int(detection.center[1]))
+            cv2.circle(self.img, (cX, cY), 5, (0, 0, 255), -1)
+
+            # Draw the tag family on the image
+            tag_id = "ID: {}".format(detection.tag_id)
+            cv2.putText(self.img, tag_id, (ptA[0], ptA[1] - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+
     def draw_contours(self):
         '''
-        Draws the shape of the image onto the image and overlay window
+        Draws the shape of the image onto the second openCV window
 
-        :param: self.img: Original picture data
         :param: self.dimg: Overlay picture data (apriltag detections)
         :param: self.imgpts: Coordinates of 3D points projected on 2D image plane
 
-        :output: Circles drawn on the image itself and the 3-dimensional shape of the image drawn on the overlay window.
+        :output: 3-Dimensional shape of the image drawn on the second window.
         '''
 
         # Overlay Pose onto image
@@ -144,10 +180,6 @@ class DetectAndGetPose:
         # Draw 3-dimensional shape of the image
         a = np.array(ipoints)
         cv2.drawContours(self.dimg, [a], 0, (255,255,255), -1)
-
-        # Draw points obtained from cv2:projectPoints()
-        for i in ipoints:
-            cv2.circle(self.img, (i[0], i[1]), 5, (255, 255, 255), -1)
 
 
     def rotate_marker_corners(self):
@@ -242,6 +274,9 @@ class DetectAndGetPose:
         if self.mtx is not None:
             # Image points are the corners of the apriltag
             imagePoints = detection_results[0].corners.reshape(1,4,2) 
+
+            # Draw square on all AprilTag edges
+            self.draw_squares(detection_results)
 
             # Obtain the extrinsics from the .json file for the first apriltag detected
             self.markersize = self.extrinsics[detection_results[0].tag_id][0] # Size of the AprilTag markers
