@@ -6,6 +6,7 @@ an OpenCV window.
 import os
 from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration
+from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
 def main():
@@ -30,6 +31,10 @@ def main():
         calibrate.load_intrinsic()
     mtx, dist, rvecs, tvecs = calibrate.mtx, calibrate.dist, calibrate.rvecs, calibrate.tvecs
     print(mtx)
+
+    # Detect and Estimate Pose of the Dodecahedron
+    det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
+    det_pose.overlay_camera()
 
 
 if __name__ == "__main__":
