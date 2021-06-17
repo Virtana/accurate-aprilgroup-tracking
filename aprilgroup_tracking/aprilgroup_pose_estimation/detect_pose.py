@@ -28,7 +28,7 @@ class DetectAndGetPose:
         self.mrv = None             # Object rotation matrix from Rodrigues
         self.extrinsics = None      # Tag size, translation and rotation vectors for predefined aprilgroup
         self.img = None             # Original Image
-        self.dimg = None            # Overlay Image
+        self.overlay = None         # Overlay Image
 
 
     # Append multiple value to a key in dictionary
@@ -167,7 +167,7 @@ class DetectAndGetPose:
         '''
         Draws the shape of the image onto the second openCV window
 
-        :param: self.dimg: Overlay picture data (apriltag detections)
+        :param: self.overlay: Overlay picture data 
         :param: self.imgpts: Coordinates of 3D points projected on 2D image plane
 
         :output: 3-Dimensional shape of the image drawn on the second window.
@@ -179,7 +179,7 @@ class DetectAndGetPose:
 
         # Draw 3-dimensional shape of the image
         a = np.array(ipoints)
-        cv2.drawContours(self.dimg, [a], 0, (255,255,255), -1)
+        cv2.drawContours(self.overlay, [a], 0, (255,255,255), -1)
 
 
     def rotate_marker_corners(self):
@@ -335,14 +335,14 @@ class DetectAndGetPose:
         detector = apriltag.Detector(options)
 
         # Detect the apriltags in the image
-        detection_results, self.dimg = detector.detect(gray, return_image=True)
+        detection_results, dimg = detector.detect(gray, return_image=True)
 
         # Amount of april tags detected
         num_detections = len(detection_results)
         self.logger.info('Detected {} tags.\n'.format(num_detections))
 
-        # Overlay on the apriltag
-        # overlay = self.img // 2 + self.dimg[:, :, None] // 2
+        # Overlay on the dodecahedron with AprilTags
+        self.overlay = self.img // 2 
 
         # If 1 or more apriltags are detected, estimate and draw the pose
         if num_detections > 0:
@@ -408,7 +408,7 @@ class DetectAndGetPose:
             # Display the object itself with points overlaid onto the object
             cv2.imshow(window, self.img)
             # Display the overlay window that shows a drawing of the object
-            cv2.imshow('image', self.dimg)
+            cv2.imshow('image', self.overlay)
         
             # if ESC clicked, break the loop
             if  cv2.waitKey(1) == 27:
