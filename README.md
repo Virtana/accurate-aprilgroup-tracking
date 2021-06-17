@@ -114,7 +114,9 @@ Execute the program
 - Take images of your chessboard with your USB camera 
 - Create a folder named "***images***" under the directory: ***aprilgroup_tracking/calibration/***
 - Store your images under this folder
-- Calibrate your camera by running:
+- Obtain the Calibrated Dodecahedron and it's information (measured tag sizes, rotation and translation vectors) as a ***.json*** file
+- Store this ***.json*** file under the directory: ***aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json***
+- Calibrate, Detect and Estimate the pose of the Dodecahedron by running:
 
 ```bash
 # Assumming you are in the directory: accurate-aprilgroup-tracking
@@ -123,6 +125,12 @@ $ python3 aprilgroup_tracking/main.py
 
 > This will search for the camera intrinsic parameters, if found, it will store them, 
 > if not found, it will run the calibration using the images you took.
+> After calibration, two windows will open up. 
+> Move your calibrated dodecahedron in front of your camera, or vice versa.
+> The pose points will be overlaid onto your dodecahedron, and the pose drawing 
+> will be displayed on the other window.
+> Any logs created would be stored under the ***logs*** folder.
+
 
 
 **N.B: More details and patches coming soon...**
