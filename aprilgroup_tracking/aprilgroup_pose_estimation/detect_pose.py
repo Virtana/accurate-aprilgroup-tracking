@@ -23,7 +23,7 @@ class DetectAndGetPose:
         self.tvecs: np.ndarray                  # Object translation vectors
         self.rvecs: np.ndarray                  # Object rotation vectors
         self.markersize: float                  # Apriltag markers size
-        self.markercorners: List[object] = []   # Corners of the apriltags in the world frame
+        self.markercorners: List[object]        # Corners of the apriltags in the world frame
         self.opoints: List[object]              # Object points
         self.imgpts: np.ndarray                 # 3D points obtained from cv2:projectPoints
         self.mrv: np.ndarray                    # Object rotation matrix from Rodrigues
