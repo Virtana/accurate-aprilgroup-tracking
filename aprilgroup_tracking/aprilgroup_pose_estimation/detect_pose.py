@@ -8,31 +8,32 @@ import cv2
 import apriltag
 from pathlib import Path
 import datetime
+from typing import List, Dict
 
 
 class DetectAndGetPose:
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
     JSON_FILE = 'april_group.json'
-    
+
 
     def __init__(self, logger, mtx, dist):
         self.logger = logger
-        self.mtx = mtx              # Camera matrix
-        self.dist = dist            # Camera distortions
-        self.tvecs = None           # Object translation vectors
-        self.rvecs = None           # Object rotation vectors
-        self.markersize = None      # Apriltag markers size
-        self.markercorners = None   # Corners of the apriltags in the world frame
-        self.opoints = None         # Object points
-        self.imgpts = None          # 3D points obtained from cv2:projectPoints
-        self.mrv = None             # Object rotation matrix from Rodrigues
-        self.extrinsics = None      # Tag size, translation and rotation vectors for predefined aprilgroup
-        self.img = None             # Original Image
-        self.overlay = None         # Overlay Image
+        self.mtx: np.ndarray = mtx              # Camera matrix
+        self.dist: np.ndarray = dist            # Camera distortions
+        self.tvecs: np.ndarray                  # Object translation vectors
+        self.rvecs: np.ndarray                  # Object rotation vectors
+        self.markersize: float                  # Apriltag markers size
+        self.markercorners: List[object] = []   # Corners of the apriltags in the world frame
+        self.opoints: List[object]              # Object points
+        self.imgpts: np.ndarray                 # 3D points obtained from cv2:projectPoints
+        self.mrv: np.ndarray                    # Object rotation matrix from Rodrigues
+        self.extrinsics: Dict                   # Tag size, translation and rotation vectors for predefined aprilgroup
+        self.img: np.ndarray                    # Original Image
+        self.overlay: np.ndarray                # Overlay Image
 
 
     # Append multiple value to a key in dictionary
-    def add_values_in_dict(self, sample_dict, key, list_of_values):
+    def add_values_in_dict(self, sample_dict, key, list_of_values) -> Dict:
         '''
         Append multiple values to a key in the given dictionary
 
@@ -45,10 +46,11 @@ class DetectAndGetPose:
         if key not in sample_dict:
             sample_dict[key] = list()
         sample_dict[key].extend(list_of_values)
+
         return sample_dict
 
     
-    def get_extrinsics(self):
+    def get_extrinsics(self) -> Dict:
         '''
         Obtain the tag sizes, rvecs and tvecs for each apriltag from the .json file
 
@@ -56,8 +58,10 @@ class DetectAndGetPose:
         :return: extrinsics: A dict with all the extrinsic values paired to their corresponding tag_id
         '''
 
+        # TODO: It reads from the path on every run, have it read only once
+
         # Extrinsics Dict
-        extrinsics = {}
+        extrinsics:Dict = {}
 
         # Opening json file containing the dodecahedron extrinsics
         filepath = Path(self.DIRPATH) / self.JSON_FILE
@@ -80,7 +84,7 @@ class DetectAndGetPose:
         return extrinsics
 
 
-    def undistort_frame(self, frame):
+    def undistort_frame(self, frame) -> np.ndarray:
         '''
         Undistorts the camera frame given the camera matrix and distortion values from camera calibration
 
@@ -106,7 +110,7 @@ class DetectAndGetPose:
         return dst
 
 
-    def draw_boxes(self, edges):
+    def draw_boxes(self, edges) -> None:
         '''
         Draws the lines and edges on the april tag images
         to show the pose estimations.
@@ -126,7 +130,7 @@ class DetectAndGetPose:
             cv2.line(self.img, self.imgpts[i], self.imgpts[j], (0, 255, 0), 1, 16)
 
 
-    def draw_squares(self, detections):
+    def draw_squares(self, detections) -> None:
         '''
         Extract the bounding box (x, y)-coordinates for the AprilTag
         and convert each of the (x, y)-coordinate pairs to integers
@@ -163,7 +167,7 @@ class DetectAndGetPose:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
 
-    def draw_contours(self):
+    def draw_contours(self) -> None:
         '''
         Draws the shape of the image onto the second openCV window
 
@@ -182,7 +186,7 @@ class DetectAndGetPose:
         cv2.drawContours(self.overlay, [a], 0, (255,255,255), -1)
 
 
-    def rotate_marker_corners(self):
+    def rotate_marker_corners(self) -> None:
         '''
         Rotates and Translates the apriltag by the rotation and translation vectors given.
 
@@ -233,7 +237,7 @@ class DetectAndGetPose:
         self.opoints = np.vstack((self.markercorners, self.opoints))
         
 
-    def project_draw_points(self, prvecs, ptvecs):
+    def project_draw_points(self, prvecs: np.ndarray, ptvecs: np.ndarray) -> None:
         '''
         Projects the 3D points onto the image plane and
         draws those points.
@@ -261,7 +265,7 @@ class DetectAndGetPose:
         self.imgpts, jac = cv2.projectPoints(opointsArr, prvecs, ptvecs, self.mtx, self.dist)
 
 
-    def estimate_pose(self, detection_results):
+    def estimate_pose(self, detection_results) -> None:
         '''
         Gets the pose of the object with apriltags attached.
 
@@ -300,7 +304,7 @@ class DetectAndGetPose:
                 self.draw_contours()
 
 
-    def detect_and_get_pose(self, frame):  
+    def detect_and_get_pose(self, frame) -> None:  
         '''
         This function takes each frame from the camera, 
         uses the apriltag library to detect the apriltags, overlays on the apriltag,
@@ -349,7 +353,7 @@ class DetectAndGetPose:
             self.estimate_pose(detection_results)
 
 
-    def process_frame(self, frame):
+    def process_frame(self, frame) -> np.ndarray:
         '''
         Undistorts Frame (other processing, if needed, can go here)
         :return: frame: Processed Frame
@@ -362,7 +366,7 @@ class DetectAndGetPose:
         return frame
 
 
-    def overlay_camera(self):
+    def overlay_camera(self) -> None:
         '''
         This function creates a new camera window, to show both the pose estimation boxes
         drawn on the apriltags, and projections overlayed onto the incoming frames. 

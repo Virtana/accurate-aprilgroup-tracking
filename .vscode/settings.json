@@ -1,4 +1,10 @@
 {
     "python.linting.mypyEnabled": true,
-    "python.linting.enabled": true
+    "python.linting.enabled": true,
+    // Whitelist NumPy to remove lint errors
+    "python.linting.mypyArgs": [
+        "--extension-pkg-whitelist=numpy"
+    ],
+    // If using a virtual environment, add python path here: e.g.:
+    // "python.pythonPath": "/home/username/virtual_env/bin/python3",
 }
