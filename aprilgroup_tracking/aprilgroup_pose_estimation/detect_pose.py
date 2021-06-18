@@ -33,7 +33,7 @@ class DetectAndGetPose:
 
 
     # Append multiple value to a key in dictionary
-    def add_values_in_dict(self, sample_dict, key, list_of_values) -> Dict:
+    def add_values_in_dict(self, sample_dict: Dict, key: int, list_of_values: List[object]) -> Dict:
         '''
         Append multiple values to a key in the given dictionary
 
@@ -43,6 +43,7 @@ class DetectAndGetPose:
 
         :return: sample_dict: The dictionary with the values added to their specific key
         '''
+
         if key not in sample_dict:
             sample_dict[key] = list()
         sample_dict[key].extend(list_of_values)
@@ -84,7 +85,7 @@ class DetectAndGetPose:
         return extrinsics
 
 
-    def undistort_frame(self, frame) -> np.ndarray:
+    def undistort_frame(self, frame: np.ndarray) -> np.ndarray:
         '''
         Undistorts the camera frame given the camera matrix and distortion values from camera calibration
 
@@ -110,7 +111,7 @@ class DetectAndGetPose:
         return dst
 
 
-    def draw_boxes(self, edges) -> None:
+    def draw_boxes(self) -> None:
         '''
         Draws the lines and edges on the april tag images
         to show the pose estimations.
@@ -121,6 +122,22 @@ class DetectAndGetPose:
         :output: The boxes that show the pose estimation
         '''
 
+        # Bounding box for AprilTag, this will display a 3D cube on detected AprilTags in the pose direction
+        edges = np.array([
+            0, 1,
+            1, 2,
+            2, 3,
+            3, 0,
+            0, 4,
+            1, 5,
+            2, 6,
+            3, 7,
+            4, 5,
+            5, 6,
+            6, 7,
+            7, 4
+        ]).reshape(-1, 2)
+
         # Overlay Pose onto image
         self.imgpts = np.round(self.imgpts).astype(int)
         self.imgpts = [tuple(pt) for pt in self.imgpts.reshape(-1, 2)]
@@ -130,7 +147,7 @@ class DetectAndGetPose:
             cv2.line(self.img, self.imgpts[i], self.imgpts[j], (0, 255, 0), 1, 16)
 
 
-    def draw_squares(self, detections) -> None:
+    def draw_squares(self, detections: List[object]) -> None:
         '''
         Extract the bounding box (x, y)-coordinates for the AprilTag
         and convert each of the (x, y)-coordinate pairs to integers
@@ -265,7 +282,7 @@ class DetectAndGetPose:
         self.imgpts, jac = cv2.projectPoints(opointsArr, prvecs, ptvecs, self.mtx, self.dist)
 
 
-    def estimate_pose(self, detection_results) -> None:
+    def estimate_pose(self, detection_results: List[object]) -> None:
         '''
         Gets the pose of the object with apriltags attached.
 
@@ -274,6 +291,7 @@ class DetectAndGetPose:
 
         :output: self.draw_contours: The pose of obtained and the contours found from cv2:projectPoints() are drawn.
         '''
+
         # If the camera was calibrated and the matrix is supplied
         if self.mtx is not None:
             # Image points are the corners of the apriltag
@@ -304,7 +322,7 @@ class DetectAndGetPose:
                 self.draw_contours()
 
 
-    def detect_and_get_pose(self, frame) -> None:  
+    def detect_and_get_pose(self, frame: np.ndarray) -> None:  
         '''
         This function takes each frame from the camera, 
         uses the apriltag library to detect the apriltags, overlays on the apriltag,
@@ -353,7 +371,7 @@ class DetectAndGetPose:
             self.estimate_pose(detection_results)
 
 
-    def process_frame(self, frame) -> np.ndarray:
+    def process_frame(self, frame: np.ndarray) -> np.ndarray:
         '''
         Undistorts Frame (other processing, if needed, can go here)
         :return: frame: Processed Frame
