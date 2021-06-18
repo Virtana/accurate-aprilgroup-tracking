@@ -59,8 +59,6 @@ class DetectAndGetPose:
         :return: extrinsics: A dict with all the extrinsic values paired to their corresponding tag_id
         '''
 
-        # TODO: It reads from the path on every run, have it read only once
-
         # Extrinsics Dict
         extrinsics:Dict = {}
 
@@ -81,6 +79,8 @@ class DetectAndGetPose:
     
         # Closing file
         f.close()
+
+        self.logger.info('Successfully Loaded AprilGroup Extrinsics!')
 
         return extrinsics
 
@@ -339,9 +339,6 @@ class DetectAndGetPose:
         # Apply grayscale to the frame to get proper AprilTag Detections
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Get all extrinsics and tag sizes from the .json file
-        self.extrinsics = self.get_extrinsics()
-
         # AprilTag detector options
         options = apriltag.DetectorOptions(families='tag36h11',
                                         border=1,
@@ -393,6 +390,9 @@ class DetectAndGetPose:
         :output: Two video captured windows, one displays the object and the pose overlaid over the object, the
         other displays the drawing of the object pose.
         '''
+
+        # Get all extrinsics and tag sizes from the .json file
+        self.extrinsics = self.get_extrinsics()
 
         # Create a cv2 window to show images
         window = 'Camera'
