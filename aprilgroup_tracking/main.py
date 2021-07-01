@@ -1,8 +1,8 @@
-'''
+"""
 The main.py will call all the necessary functionality for this project.
 So far it calibrates the camera, detects the apriltags and estimates the pose of the aprilgroup, drawing, it onto
 an OpenCV window.
-'''
+"""
 import os
 from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration

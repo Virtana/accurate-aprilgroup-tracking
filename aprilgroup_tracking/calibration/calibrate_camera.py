@@ -1,4 +1,4 @@
-'''
+"""
 Camera Calibration
 
 Approximately > 15 images are taken of different angles and rotations of a chessboard.
@@ -11,7 +11,7 @@ Important when taking images:
 3. Take pictures with different angles to improve the quality of the calibration.
 4. Use an environment with good illumination.
 
-'''
+"""
 
 import numpy as np
 import cv2
@@ -22,11 +22,29 @@ from typing import List, Tuple
 
 
 class Calibration:
+    """Performs Camera Calibration using a Chessboard.
+
+    Using photos of different rotations and translations of a chessboard, the camera is calibrated.
+    If camera intrinsics already exists, it loads them, else it uses the images taken to initiate calibration.
+
+    Attributes:
+        logger: Used to create class specific logs for info and debugging.
+        mtx: Camera Matrix.
+        dist: Camera Distortion Coefficients.
+        rvecs: Rotation Vector.
+        tvecs: Translation Vector.
+        chessboardSize: Size (Width and Height) of ChessBoard.
+        frameSize: Pixel width and height of camera frame.
+        criteria: Termination Criteria.
+        objpoints: 3d point in real world space.
+        imgpoints: 2D points in image plane.
+    """
+
     _INTRINSIC_PARAMETERS_FILE = "aprilgroup_tracking/calibration/CameraParams.npz"
     _IMAGES_FOLDER = "aprilgroup_tracking/calibration/images"
 
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(self, logger:Logger) -> None:
         self.logger = logger
         self.mtx: np.ndarray
         self.dist: np.ndarray
@@ -40,11 +58,12 @@ class Calibration:
 
 
     def try_load_intrinsic(self) -> bool:
-        '''
-        Load intrinsics file if it is already there.
+        """Load intrinsics file if it is already there.
 
-        :return: bool: Returns True if loaded, false if not.
-        '''
+        Returns:
+        Returns True if loaded, false if not.
+        """
+
         try:
             self.logger.info("Trying to retrieve last intrinsic calibration parameters.")
             self.load_intrinsic()
@@ -57,11 +76,11 @@ class Calibration:
 
 
     def start_intrinsic_calibration(self) -> np.ndarray:
-        '''
-        Initiate calibration of the camera to obtain intrinsic values.
+        """Initiate calibration of the camera to obtain intrinsic values.
 
-        :return: objp: Object Points of chessboard
-        '''
+        Returns:
+        Object Points of chessboard.
+        """
 
         # Termination Criteria
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -79,25 +98,22 @@ class Calibration:
 
 
     def save_intrinsic(self) -> None:
-        ''' 
-        Save Camera Parameters
-        '''
+        """Save Camera Parameters."""
+
         np.savez(self._INTRINSIC_PARAMETERS_FILE, cameraMatrix=self.cameraMatrix, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
 
     
     def load_intrinsic(self) -> None:
-        '''
-        Loads the Camera Parameters
-        '''
+        """Loads the Camera Parameters"""
         with np.load(self._INTRINSIC_PARAMETERS_FILE) as file:
             self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in ('cameraMatrix','dist','rvecs','tvecs')]
 
 
     def calculate_intrinsic(self) -> None:
-        '''
+        """
         Calculate the intrisic values of the camera based on the chessboard size, criteria and object points.
         Save them to a .npz file.
-        '''
+        """
 
         # Start the camera calibration
         objp = self.start_intrinsic_calibration()
@@ -146,10 +162,10 @@ class Calibration:
 
 
     def get_reprojection_error(self) -> None:
-        '''
+        """
         Obtains the reprojection error after camera calibration. The lower the error, the better calibrated the camera.
         Values should range from ...
-        '''
+        """
         # Reprojection Error
         mean_error = 0
 

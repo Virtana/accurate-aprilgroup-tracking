@@ -129,6 +129,8 @@ dmypy.json
 .pyre/
 
 # Specific folders and files
+.vscode/
+logs/
 aprilgroup_tracking/calibration/images/
 aprilgroup_tracking/calibration/CameraParams.npz
 aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json
