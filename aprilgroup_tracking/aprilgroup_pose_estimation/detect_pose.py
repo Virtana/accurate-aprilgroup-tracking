@@ -350,10 +350,8 @@ class DetectAndGetPose:
         Args:
         object_pts: 
             Initial 3D points in space
-        rvec: 
-            Rotation vector of the apriltag.
-        tvec: 
-            Translation vector of the apriltag.
+        transformation: 
+            Rotation and Translation vector, respectively, of the apriltag.
 
         Returns:
         3D points of Apriltag after rotation and translation has been applied,
@@ -379,10 +377,6 @@ class DetectAndGetPose:
         Args:
         extrinsics: 
             Dict that contains the key to extrinsics data pairings for all tags on the dodecahedron.
-        self.rvec: 
-            Rotation vector of the apriltag.
-        self.tvec: 
-            Translation vector of the apriltag.
 
         Returns:
         The 3D points in space of the entire AprilGroup.
@@ -393,11 +387,9 @@ class DetectAndGetPose:
         for i in extrinsics:
             # Dict key is tag id, with the tag size, then tvec, then rvec, appended 
             tag_size = extrinsics[i][0]
-            rvecs = extrinsics[i][2]
-            tvecs = extrinsics[i][1]
 
-            # Tuple with rvec and tvec transformation
-            transformation = (rvecs, tvecs)
+            # Tuple with rvec (first in tuple) and tvec (second in tuple) transformation
+            transformation = (extrinsics[i][2], extrinsics[i][1])
 
             # 3D Initial Marker Points
             initial_obj_pts = self.get_initial_pts(tag_size)
@@ -459,11 +451,9 @@ class DetectAndGetPose:
 
                     # Obtain the extrinsics from the .json file for the first apriltag detected
                     markersize = self.extrinsics[detection.tag_id][0] # Size of the AprilTag markers
-                    rvecs = self.extrinsics[detection.tag_id][2] # Rotation Vector of AprilTag
-                    tvecs = self.extrinsics[detection.tag_id][1] # Translation Vector of AprilTag
 
-                    # Tuple with rvec and tvec transformation
-                    transformation = (rvecs, tvecs)
+                    # Tuple with rvec (Rotation Vector of AprilTag) and tvec (Translation Vector of AprilTag) transformation
+                    transformation = (self.extrinsics[detection.tag_id][2], self.extrinsics[detection.tag_id][1])
 
                     # Obtains the initial 3D points in space for each detected AprilTag
                     initial_obj_pts = self.get_initial_pts(markersize)
