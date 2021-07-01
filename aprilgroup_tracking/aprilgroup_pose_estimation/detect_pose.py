@@ -30,6 +30,7 @@ class DetectAndGetPose:
         dist: Camera Distortion Coefficients.
         img: Original Frame.
         draw_frame: 3D Black Drawing Frame.
+        prev_transform: Previous Pose of Dodecahedron initialised to None.
         options: AprilTag Detectos Options.
         extrinsics: Tag sizes, translation and rotation vectors for predefined AprilGroup.
         opointsArr: AprilGroup Object Points.
@@ -49,6 +50,7 @@ class DetectAndGetPose:
         self.dist: np.ndarray = dist            # Camera distortions
         self.img: np.ndarray                    # Original Frame
         self.draw_frame: np.ndarray             # 3D Drawing Frame 
+        self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None) # Previous Pose of Dodecahedron.
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
@@ -256,7 +258,7 @@ class DetectAndGetPose:
             cv2.line(self.draw_frame, ptD, ptA, (255, 255, 255), 5, cv2.LINE_AA)
 
     
-    def draw_corners(self, detection:List[object]) -> None:
+    def draw_corners(self, detection:apriltag.Detection) -> None:
         """Extracts the bounding box (x, y)-coordinates for the AprilTag
         and convert each of the (x, y)-coordinate pairs to integers.
 
@@ -410,7 +412,7 @@ class DetectAndGetPose:
         return opointsArr
 
 
-    def _obtain_detections(self, gray:np.ndarray) -> None:
+    def _obtain_detections(self, gray:np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """Obtains the tag ids detected, along with their image and object points.
         
         Args:
@@ -496,7 +498,7 @@ class DetectAndGetPose:
         self.draw_squares_and_3d_pts(imgpts)
 
 
-    def _estimate_pose(self, imgPointsArr:List[object], objPointsArr:List[object]) -> None:
+    def _estimate_pose(self, imgPointsArr:List[np.ndarray], objPointsArr:List[np.ndarray]) -> None:
         """Obtains the pose of the dodecahedron.
 
         Args:
@@ -519,18 +521,28 @@ class DetectAndGetPose:
             imgPointsArr = np.array(imgPointsArr).reshape(-1, 2) # Nx2 array
 
             # Obtain the pose of the apriltag
-            success, prvecs, ptvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, flags=cv2.SOLVEPNP_ITERATIVE)
-            transformation = (prvecs, ptvecs)
+            # If the last pose is None, obtain the pose with no Extrinsic Guess, else use Extrinsic guess and the last pose
+            if self.prev_transform[0] is None:
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, flags=cv2.SOLVEPNP_ITERATIVE)
+            else:
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, self.prev_transform[0], self.prev_transform[1], True, flags=cv2.SOLVEPNP_ITERATIVE)
+
+            # success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, flags=cv2.SOLVEPNP_ITERATIVE)
+            transformation = (pose_rvecs, pose_tvecs)
+            self.logger.info("Pose Obtained {}:".format(transformation))
 
             # If pose was found successfully
             if success:
                 self.logger.info("Projecting the 3D points onto the image plane...")
                 # Project the 3D points onto the image plane
                 self._project_draw_points(transformation)
+
+                # Assign the previous pose to current pose
+                self.prev_transform = (pose_rvecs, pose_tvecs)
             else:
                 # Clear iteration if SolvePNP is 'bad'
-                prvecs = None
-                ptvecs = None
+                pose_rvecs = None
+                pose_tvecs = None
 
 
     def _detect_and_get_pose(self, frame:np.ndarray) -> None:  
