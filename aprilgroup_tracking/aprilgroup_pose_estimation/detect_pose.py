@@ -16,13 +16,14 @@ class DetectAndGetPose:
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
-    Using these detections, an AprilGroup is formed when more than 1 tag is detected.
-    The image points (corners of the AprilTags), are obtained, along with the corresponding
-    object points from predefined extrinsics obtained during the calibration of the dodecahedron.
+    Using these detections, an AprilGroup is formed when more than 1 tag is
+    detected. The image points (corners of the AprilTags), are obtained, along
+    with the corresponding object points from predefined extrinsics obtained
+    during the calibration of the dodecahedron.
 
-    Using the image and object points, the pose of the dodecahedron is obtained, and the
-    3D points are projected onto the object in the frame. A 3D drawing of the dodecahedron is 
-    also displayed.
+    Using the image and object points, the pose of the dodecahedron is
+    obtained, and the 3D points are projected onto the object in the frame.
+    A 3D drawing of the dodecahedron is also displayed.
 
     Attributes:
         logger: Used to create class specific logs for info and debugging.
@@ -32,47 +33,55 @@ class DetectAndGetPose:
         draw_frame: 3D Black Drawing Frame.
         prev_transform: Previous Pose of Dodecahedron initialised to None.
         options: AprilTag Detectos Options.
-        extrinsics: Tag sizes, translation and rotation vectors for predefined AprilGroup.
+        extrinsics: Tag sizes, translation and rotation vectors for
+                    predefined AprilGroup.
         opointsArr: AprilGroup Object Points.
     """
 
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
     JSON_FILE = 'april_group.json'
 
-
     def __init__(self, logger, mtx, dist):
-        """Inits DetectAndGetPose Class with a logger, camera matrix and 
-        distortion coefficients, the two frames to be displayed, AprilTag Detector Options,
-        the predefined AprilGroup Extrinsics and the AprilGroup Object Points.
+        """Inits DetectAndGetPose Class with a logger,
+        camera matrix and distortion coefficients, the
+        two frames to be displayed, AprilTag Detector Options,
+        the predefined AprilGroup Extrinsics and the AprilGroup
+        Object Points.
         """
         self.logger = logger
         self.mtx: np.ndarray = mtx              # Camera matrix
         self.dist: np.ndarray = dist            # Camera distortions
         self.img: np.ndarray                    # Original Frame
-        self.draw_frame: np.ndarray             # 3D Drawing Frame 
-        self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None) # Previous Pose of Dodecahedron.
+        self.draw_frame: np.ndarray             # 3D Drawing Frame
+        # Previous Pose of Dodecahedron.
+        self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None)
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
-                                        border=1,
-                                        nthreads=4,
-                                        quad_decimate=1.0,
-                                        quad_blur=0.0,
-                                        refine_edges=True,
-                                        refine_decode=False,
-                                        refine_pose=True,
-                                        debug=False,
-                                        quad_contours=True)
+                                                border=1,
+                                                nthreads=4,
+                                                quad_decimate=1.0,
+                                                quad_blur=0.0,
+                                                refine_edges=True,
+                                                refine_decode=False,
+                                                refine_pose=True,
+                                                debug=False,
+                                                quad_contours=True)
 
-        # Get all extrinsics (tag size, translation and rotation vectors for predefined aprilgroup) from the .json file
+        # Get all extrinsics (tag size, translation and rotation vectors
+        # for predefined aprilgroup) from the .json file
         self.extrinsics = self.get_extrinsics()
 
-        # Extract the tag size, rvec and tvec for all apriltags on dodeca 
+        # Extract the tag size, rvec and tvec for all apriltags on dodeca
         # and obtain the aprilgroup object points
         self.opointsArr = self.get_all_points(self.extrinsics)
 
-
-    def add_values_in_dict(self, sample_dict:Dict, key:int, list_of_values:List[object]) -> Dict:
+    def add_values_in_dict(
+        self,
+        sample_dict: Dict,
+        key: int,
+        list_of_values: List[object]
+    ) -> Dict:
         """Appends multiple values to a key in the given dictionary
 
         Args:
@@ -99,41 +108,51 @@ class DetectAndGetPose:
 
         return sample_dict
 
-    
     def get_extrinsics(self) -> Dict:
-        """Obtains the tag sizes, rvecs and tvecs for each apriltag from the .json file
+        """Obtains the tag sizes, rvecs and tvecs for each apriltag
+        from the .json file
 
         Args:
         JSON_FILE:
             The json file to be used to obtain the extrinsics.
 
         Returns:
-        A dict with all the extrinsic values paired to their corresponding tag_id.
-        For example:
+        A dict with all the extrinsic values paired to their
+        corresponding tag_id. For example:
 
-        {'205': (0.017834, [[0.4343 0.1222 0.1245]], [[0.755 0.1684 0.0754]]),
-        '200': (0.018393, [[0.0934 0.3553 0.7756]], [[0.00324 0.05464 0.0954]])}
+        {
+            '205': (0.017834, [[0.443 0.122 0.124]], [[0.755 0.1684 0.074]]),
+            '200': (0.018393, [[0.094 0.353 0.775]], [[0.0024 0.0544 0.09]])
+        }
 
         """
 
         # Extrinsics Dict
-        extrinsics:Dict = {}
+        extrinsics: Dict = {}
 
         # Opening json file containing the dodecahedron extrinsics
         filepath = Path(self.DIRPATH) / self.JSON_FILE
-        with open (filepath, "r") as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
 
         for key, tags in data['tags'].items():
             # Size of the tags
             tag_sizes = tags['size']
             # Turning tvec into N x 1 array
-            tvecs = np.array(tags['extrinsics'][:3], dtype=np.float32).reshape((3,1))
+            tvecs = np.array(tags['extrinsics'][:3],
+                             dtype=np.float32).reshape((3, 1))
             # Turning rvec into N x 1 array
-            rvecs = np.array(tags['extrinsics'][-3:], dtype=np.float32).reshape((3,1))
+            rvecs = np.array(tags['extrinsics'][-3:],
+                             dtype=np.float32).reshape((3, 1))
             # Add extrinsics to their specific tag_id
-            extrinsics = self.add_values_in_dict(extrinsics, int(key), [tag_sizes, tvecs, rvecs])
-    
+            extrinsics = self.add_values_in_dict(
+                                                 extrinsics,
+                                                 int(key),
+                                                 [tag_sizes,
+                                                  tvecs,
+                                                  rvecs]
+                                                )
+
         # Closing file
         f.close()
 
@@ -141,17 +160,16 @@ class DetectAndGetPose:
 
         return extrinsics
 
-
-    def undistort_frame(self, frame:np.ndarray) -> np.ndarray:
-        """Undistorts the camera frame given the camera matrix and 
+    def undistort_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Undistorts the camera frame given the camera matrix and
         distortion values from camera calibration
 
         Args:
         frame:
             Current camera frame.
-        self.mtx: 
+        self.mtx:
             Camera Matrix.
-        self.dist: 
+        self.dist:
             Distortion Coefficients from Calibrated Camera.
 
         Returns:
@@ -162,7 +180,13 @@ class DetectAndGetPose:
         h,  w = frame.shape[:2]
 
         # Get the camera matrix and distortion values
-        newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
+        newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(
+                                                             self.mtx,
+                                                             self.dist,
+                                                             (w, h),
+                                                             1,
+                                                             (w, h)
+                                                            )
 
         # Undistort Frame
         dst = cv2.undistort(frame, self.mtx, self.dist, None, newCameraMatrix)
@@ -173,24 +197,24 @@ class DetectAndGetPose:
 
         return dst
 
-
-    def draw_boxes(self, imgpts:np.ndarray) -> None:
+    def draw_boxes(self, imgpts: np.ndarray) -> None:
         """Draws the lines and edges on the april tag images
         to show the pose estimations.
 
         Args:
-        self.img: 
+        self.img:
             The image containing dodecahedron with apriltags attached.
-        self.imgpts: 
+        self.imgpts:
             Image points of the AprilGroup returned from cv2:ProjectPoints().
-        self.dist: 
+        self.dist:
             Distortion Coefficients from Calibrated Camera.
 
         Returns:
         3D Boxes that shows the AprilGroup detected and the pose estimated.
         """
 
-        # Bounding box for AprilTag, this will display a 3D cube on detected AprilTags 
+        # Bounding box for AprilTag, this will display a
+        # 3D cube on detected AprilTags
         # in the pose direction
         edges = np.array([
             0, 1,
@@ -215,29 +239,31 @@ class DetectAndGetPose:
         for i, j in edges:
             cv2.line(self.img, imgpts[i], imgpts[j], (0, 255, 0), 1, 16)
 
-    
-    def draw_squares_and_3d_pts(self, imgpts:np.ndarray) -> None:
-        """Extracts the bounding box (x, y)-image points returned from cv2:projectPoints() for the AprilGroup
+    def draw_squares_and_3d_pts(self, imgpts: np.ndarray) -> None:
+        """Extracts the bounding box (x, y)-image points
+        returned from cv2:projectPoints() for the AprilGroup
         and convert each of the (x, y)-coordinate pairs to integers.
 
         Args:
-        self.img: 
+        self.img:
             Original frame data.
-        self.draw_frame: 
+        self.draw_frame:
             Second window to display 3D drawing of the Dodecahedron.
-        imgpts: 
-            Image points returned from cv2:projectPoints (mapping 3D to 2D points).
+        imgpts:
+            Image points returned from cv2:projectPoints
+            (mapping 3D to 2D points).
 
         Returns:
-        Bounding box to form a 3D Dodecahedron drawing, and image points overlay on the AprilGroup Detected.
+        Bounding box to form a 3D Dodecahedron drawing,
+        and image points overlay on the AprilGroup Detected.
         """
 
         # Overlay Pose onto image
         ipoints = np.round(imgpts).astype(int)
         ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
 
-        # Draw points obtained from cv2:projectPoints() overlay onto the dodecahedron
-        # object itself.
+        # Draw points obtained from cv2:projectPoints()
+        # overlay onto the dodecahedron object itself.
         for i in ipoints:
             if i[1] < 720 and i[0] < 1280:
                 cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
@@ -249,30 +275,44 @@ class DetectAndGetPose:
             ptB = (int(ptB[0]), int(ptB[1]))
             ptC = (int(ptC[0]), int(ptC[1]))
             ptD = (int(ptD[0]), int(ptD[1]))
-            ptA = (int(ptA[0]), int(ptA[1]))   
+            ptA = (int(ptA[0]), int(ptA[1]))
 
-            # Draw the 3D form of the dodecahedron from the image points obtained on a second frame
-            cv2.line(self.draw_frame, ptA, ptB, (255, 255, 255), 5, cv2.LINE_AA)
-            cv2.line(self.draw_frame, ptB, ptC, (255, 255, 255), 5, cv2.LINE_AA)
-            cv2.line(self.draw_frame, ptC, ptD, (255, 255, 255), 5, cv2.LINE_AA)
-            cv2.line(self.draw_frame, ptD, ptA, (255, 255, 255), 5, cv2.LINE_AA)
+            # Draw the 3D form of the dodecahedron from the image points
+            # obtained on a second frame
+            cv2.line(
+                self.draw_frame,
+                ptA, ptB, (255, 255, 255),
+                5, cv2.LINE_AA)
+            cv2.line(
+                self.draw_frame,
+                ptB, ptC, (255, 255, 255),
+                5, cv2.LINE_AA)
+            cv2.line(
+                self.draw_frame,
+                ptC, ptD, (255, 255, 255),
+                5, cv2.LINE_AA)
+            cv2.line(
+                self.draw_frame,
+                ptD, ptA, (255, 255, 255),
+                5, cv2.LINE_AA)
 
-    
-    def draw_corners(self, detection:apriltag.Detection) -> None:
+    def draw_corners(self, detection: apriltag.Detection) -> None:
         """Extracts the bounding box (x, y)-coordinates for the AprilTag
         and convert each of the (x, y)-coordinate pairs to integers.
 
         Args:
-        self.img: 
+        self.img:
             Original frame data.
-        detections: 
+        detections:
             AprilTag detections found via the AprilTag library.
 
         Returns:
-        Bounding box with center point and tag id shown overlay on each AprilTag detection.
+        Bounding box with center point and tag id shown overlay
+        on each AprilTag detection.
         """
 
-        # For all detections, get the corners and draw the bounding box, center and tag id
+        # For all detections, get the corners and draw the
+        # bounding box, center and tag id
 
         # AprilTag Corners (Image Points)
         (ptA, ptB, ptC, ptD) = detection.corners
@@ -294,16 +334,15 @@ class DetectAndGetPose:
         # Draw the tag family on the image
         tag_id = "ID: {}".format(detection.tag_id)
         cv2.putText(self.img, tag_id, (ptA[0], ptA[1] - 15),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-
-    def draw_contours(self, imgpts:np.ndarray) -> None:
+    def draw_contours(self, imgpts: np.ndarray) -> None:
         """Draws the contour shape of the image onto the second openCV window.
 
         Args:
-        draw_frame: 
+        draw_frame:
             Second window to display 3D drawing of the Dodecahedron.
-        imgpts: 
+        imgpts:
             Coordinates of 3D points projected on 2D image plane.
 
         Returns:
@@ -316,14 +355,13 @@ class DetectAndGetPose:
 
         # Draw 3-dimensional shape of the image
         a = np.array(ipoints)
-        cv2.drawContours(self.draw_frame, [a], 0, (255,255,255), -1)
+        cv2.drawContours(self.draw_frame, [a], 0, (255, 255, 255), -1)
 
-    
-    def get_initial_pts(self, markersize:float) -> np.ndarray:
+    def get_initial_pts(self, markersize: float) -> np.ndarray:
         """Obtains the initial 3D points in space of AprilTags.
 
         Args:
-        markersize: 
+        markersize:
             Size of the apriltag.
 
         Returns:
@@ -339,18 +377,22 @@ class DetectAndGetPose:
         ob_pt3 = [mhalf,  mhalf, 0.0]   # Upper right in marker world
         ob_pt4 = [mhalf,  -mhalf, 0.0]  # Lower right in marker world
         ob_pts = ob_pt1 + ob_pt2 + ob_pt3 + ob_pt4
-        object_pts = np.array(ob_pts).reshape(4,3)
+        object_pts = np.array(ob_pts).reshape(4, 3)
 
         return object_pts
 
-    
-    def transform_marker_corners(self, object_pts:np.ndarray, transformation:Tuple[np.ndarray,np.ndarray]) -> np.ndarray:
-        """Rotates and Translates the apriltag by the rotation and translation vectors given.
+    def transform_marker_corners(
+        self,
+        object_pts: np.ndarray,
+        transformation: Tuple[np.ndarray, np.ndarray]
+    ) -> np.ndarray:
+        """Rotates and Translates the apriltag by the rotation
+        and translation vectors given.
 
         Args:
-        object_pts: 
+        object_pts:
             Initial 3D points in space
-        transformation: 
+        transformation:
             Rotation and Translation vector, respectively, of the apriltag.
 
         Returns:
@@ -370,13 +412,13 @@ class DetectAndGetPose:
 
         return tran_mat
 
-    
-    def get_all_points(self, extrinsics:Dict) -> np.ndarray:
+    def get_all_points(self, extrinsics: Dict) -> np.ndarray:
         """Get all the points from the .json file and obtain the object points.
 
         Args:
-        extrinsics: 
-            Dict that contains the key to extrinsics data pairings for all tags on the dodecahedron.
+        extrinsics:
+            Dict that contains the key to extrinsics
+            data pairings for all tags on the dodecahedron.
 
         Returns:
         The 3D points in space of the entire AprilGroup.
@@ -385,36 +427,47 @@ class DetectAndGetPose:
         obj_points = []
 
         for i in extrinsics:
-            # Dict key is tag id, with the tag size, then tvec, then rvec, appended 
+            # Dict key is tag id, with the tag size,
+            # tvec, rvec, respectively, appended
             tag_size = extrinsics[i][0]
 
-            # Tuple with rvec (first in tuple) and tvec (second in tuple) transformation
+            # Tuple with rvec (first in tuple) and
+            # tvec (second in tuple) transformation
             transformation = (extrinsics[i][2], extrinsics[i][1])
 
             # 3D Initial Marker Points
             initial_obj_pts = self.get_initial_pts(tag_size)
 
             # Obtain 3D points in space for AprilGroup
-            marker_corners = self.transform_marker_corners(initial_obj_pts, transformation)
+            marker_corners = self.transform_marker_corners(
+                                                           initial_obj_pts,
+                                                           transformation
+                                                          )
             obj_points.append(marker_corners)
 
-        # Form needed to pass the object points into cv2:solvePnP() and cv2:projectPoints()
-        opointsArr = np.array(obj_points).reshape(-1, 3) 
+        # Form needed to pass the object points into
+        # cv2:solvePnP() and cv2:projectPoints()
+        opointsArr = np.array(obj_points).reshape(-1, 3)
 
         return opointsArr
 
+    def _obtain_detections(
+        self,
+        gray: np.ndarray
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        """Obtains the tag ids detected, along with
+        their image and object points.
 
-    def _obtain_detections(self, gray:np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
-        """Obtains the tag ids detected, along with their image and object points.
-        
         Args:
-        self.mtx: 
+        self.mtx:
             Camera Matrix.
-        gray: 
-            Frame turned to grayscale (only preprocessing needed to properly detect AprilTags)
+        gray:
+            Frame turned to grayscale (only preprocessing
+            needed to properly detect AprilTags)
 
         Returns:
-        A list of all Image points, and their corresponding list of object points and tag ids.
+        A list of all Image points, and their corresponding
+        list of object points and tag ids.
         """
 
         detector = apriltag.Detector(self.options)
@@ -435,30 +488,47 @@ class DetectAndGetPose:
             # If the camera was calibrated and the matrix is supplied
             if self.mtx is not None:
                 for i, detection in enumerate(detection_results):
-                    
-                    # The higher decision margin, the better the detection (i.e. means more contrast within the tag).
+
+                    # The higher decision margin, the better the detection
+                    # (i.e. means more contrast within the tag).
                     if detection.decision_margin < 50:
                         continue
-                    
-                    self.logger.info("Detection {} of {}:".format(i + 1, num_detections))
+
+                    self.logger.info(
+                        "Detection {} of {}:".format(
+                                                     i + 1,
+                                                     num_detections
+                                                    ))
                     self.logger.info("\n" + detection.tostring(indent=2))
 
                     # Image points are the corners of the apriltag
-                    imagePoints = detection.corners.reshape(1,4,2) 
+                    imagePoints = detection.corners.reshape(1, 4, 2)
 
                     # Draw square on all AprilTag edges
                     self.draw_corners(detection)
 
-                    # Obtain the extrinsics from the .json file for the first apriltag detected
-                    markersize = self.extrinsics[detection.tag_id][0] # Size of the AprilTag markers
+                    # Obtain the extrinsics from the .json file
+                    # for the first apriltag detected
+                    # Size of the AprilTag markers
+                    markersize = self.extrinsics[detection.tag_id][0]
 
-                    # Tuple with rvec (Rotation Vector of AprilTag) and tvec (Translation Vector of AprilTag) transformation
-                    transformation = (self.extrinsics[detection.tag_id][2], self.extrinsics[detection.tag_id][1])
+                    # Tuple with rvec (Rotation Vector of AprilTag) and
+                    # tvec (Translation Vector of AprilTag) transformation
+                    transformation = (
+                        self.extrinsics[detection.tag_id][2],
+                        self.extrinsics[detection.tag_id][1]
+                    )
 
-                    # Obtains the initial 3D points in space for each detected AprilTag
+                    # Obtains the initial 3D points in space
+                    # for each detected AprilTag
                     initial_obj_pts = self.get_initial_pts(markersize)
-                    # Obtain the object points (marker_corners) of the apriltag detected
-                    objpts = self.transform_marker_corners(initial_obj_pts, transformation) # Rotates and Translates the AprilGroup
+                    # Obtain the object points (marker_corners)
+                    # of the apriltag detected via rotating and
+                    # translating the AprilGroup
+                    objpts = self.transform_marker_corners(
+                        initial_obj_pts,
+                        transformation
+                    )
 
                     imgPointsArr.append(imagePoints)
                     objPointsArr.append(objpts)
@@ -466,14 +536,16 @@ class DetectAndGetPose:
 
         return imgPointsArr, objPointsArr, tag_ids
 
-
-    def _project_draw_points(self, transformation:Tuple[np.ndarray,np.ndarray]) -> None:
+    def _project_draw_points(
+        self,
+        transformation: Tuple[np.ndarray, np.ndarray]
+    ) -> None:
         """Projects the 3D points onto the image plane and draws those points.
 
         Args:
-        prvecs: 
+        prvecs:
             Rotation pose vector from cv2:solvePnP().
-        ptvecs: 
+        ptvecs:
             Translation pose vector from cv2:solvePnP().
 
         Returns:
@@ -481,49 +553,74 @@ class DetectAndGetPose:
         """
 
         # Project the 3D points onto the image plane
-        imgpts, jac = cv2.projectPoints(self.opointsArr, transformation[0], transformation[1], self.mtx, self.dist)
-        
+        imgpts, jac = cv2.projectPoints(
+            self.opointsArr,
+            transformation[0],
+            transformation[1],
+            self.mtx,
+            self.dist
+        )
+
         self.logger.info("Drawing the points...")
         # Draw the image points overlay onto the object and the 3D Drawing
         self.draw_squares_and_3d_pts(imgpts)
 
-
-    def _estimate_pose(self, imgPointsArr:List[np.ndarray], objPointsArr:List[np.ndarray]) -> None:
+    def _estimate_pose(
+        self,
+        imgPointsArr: List[np.ndarray],
+        objPointsArr: List[np.ndarray]
+    ) -> None:
         """Obtains the pose of the dodecahedron.
 
         Args:
-        self.mtx: 
+        self.mtx:
             Camera Matrix.
-        self.dist: 
+        self.dist:
             Camera Distortion Parameters.
-        imgPointsArr: 
+        imgPointsArr:
             Image points List obtained from all detected AprilTags in a frame.
         objPointsArr:
             Respective Object Points List for each image points obtained.
 
         Returns:
-        The pose of obtained with the points overlay onto the dodecahedron and the
-        3D drawing to observe and track the dodecahedron. 
+        The pose of obtained with the points overlay
+        onto the dodecahedron and the 3D drawing to observe
+        and track the dodecahedron.
         """
 
         if imgPointsArr and objPointsArr:
-            objPointsArr = np.array(objPointsArr).reshape(-1, 3) # Nx3 array
-            imgPointsArr = np.array(imgPointsArr).reshape(-1, 2) # Nx2 array
+            objPointsArr = np.array(objPointsArr).reshape(-1, 3)  # Nx3 array
+            imgPointsArr = np.array(imgPointsArr).reshape(-1, 2)  # Nx2 array
 
             # Obtain the pose of the apriltag
-            # If the last pose is None, obtain the pose with no Extrinsic Guess, else use Extrinsic guess and the last pose
+            # If the last pose is None, obtain the pose with
+            # no Extrinsic Guess, else use Extrinsic guess and the last pose
             if self.prev_transform[0] is None:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, flags=cv2.SOLVEPNP_ITERATIVE)
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                    objPointsArr,
+                    imgPointsArr,
+                    self.mtx,
+                    self.dist,
+                    flags=cv2.SOLVEPNP_ITERATIVE
+                )
             else:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, self.prev_transform[0], self.prev_transform[1], True, flags=cv2.SOLVEPNP_ITERATIVE)
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                    objPointsArr,
+                    imgPointsArr,
+                    self.mtx,
+                    self.dist,
+                    self.prev_transform[0],
+                    self.prev_transform[1],
+                    True,
+                    flags=cv2.SOLVEPNP_ITERATIVE
+                )
 
-            # success, pose_rvecs, pose_tvecs = cv2.solvePnP(objPointsArr, imgPointsArr, self.mtx, self.dist, flags=cv2.SOLVEPNP_ITERATIVE)
             transformation = (pose_rvecs, pose_tvecs)
             self.logger.info("Pose Obtained {}:".format(transformation))
 
             # If pose was found successfully
             if success:
-                self.logger.info("Projecting the 3D points onto the image plane...")
+                self.logger.info("Projecting 3D points onto the image plane.")
                 # Project the 3D points onto the image plane
                 self._project_draw_points(transformation)
 
@@ -534,27 +631,27 @@ class DetectAndGetPose:
                 pose_rvecs = None
                 pose_tvecs = None
 
-
-    def _detect_and_get_pose(self, frame:np.ndarray) -> None:  
+    def _detect_and_get_pose(self, frame: np.ndarray) -> None:
         """Obtains the pose of the dodecahedron.
 
-        Obtains each frame from the camera, 
-        uses the apriltag library to detect the apriltags, overlays on the apriltag,
-        and uses those detections to estimate the pose using OpenCV functions
+        Obtains each frame from the camera,
+        uses the apriltag library to detect the apriltags,
+        overlays on the apriltag, and uses those detections to
+        estimate the pose using OpenCV functions
         cv2:solvePnP() and cv2:projectPoints().
 
         Args:
-        frame: 
+        frame:
             Each frame from the camera
 
         Returns:
-        Pose and points of the AprilGroup overlayed on the dodecahedron object and the 3D drawing of the dodecahedron in
-        a seperate window. 
+        Pose and points of the AprilGroup overlayed on the dodecahedron
+        object and the 3D drawing of the dodecahedron in a seperate window.
         """
 
         # Get the frame from the Video
         self.img = frame
-        
+
         # Form a black frame to display the 3D drawing of the dodecahedron
         h,  w = self.img.shape[:2]
         self.draw_frame = np.zeros(shape=[h, w, 3], dtype=np.uint8)
@@ -562,19 +659,19 @@ class DetectAndGetPose:
         # Apply grayscale to the frame to get proper AprilTag Detections
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Obtain AprilGroup Detected and their respective tag ids, image and object points
+        # Obtain AprilGroup Detected and their respective
+        # tag ids, image and object points
         imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
 
         if tag_ids is not None:
             # Using those points, estimate the pose of the dodecahedron
             self._estimate_pose(imgPointsArr, objPointsArr)
 
-
-    def process_frame(self, frame:np.ndarray) -> np.ndarray:
+    def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """Undistorts Frame (other processing, if needed, can go here)
 
         Args:
-        frame: 
+        frame:
             Each frame from the camera.
 
         Returns:
@@ -584,23 +681,24 @@ class DetectAndGetPose:
         # Undistorts the frame
         if self.dist is not None:
             frame = self.undistort_frame(frame)
-        
-        return frame
 
+        return frame
 
     def overlay_camera(self) -> None:
         """
 
         Creates a new camera window, to show both the pose estimation boxes
-        drawn on the apriltags, and projections overlayed onto the incoming frames. 
-        This will allow us to quickly see the limitations of the baseline approach, i.e. when detection fails.
+        drawn on the apriltags, and projections overlayed onto the
+        incoming frames. This will allow us to quickly see the limitations
+        of the baseline approach, i.e. when detection fails.
 
         Args:
-        frame: 
+        frame:
             Each frame from the camera
 
         Returns:
-        Two video captured windows, one displays the object and the points returned from the pose, overlaid over the object, the
+        Two video captured windows, one displays the object and the points
+        returned from the pose, overlaid over the object, the
         other displays the 3D drawing of the object pose.
         """
 
@@ -616,7 +714,8 @@ class DetectAndGetPose:
 
         if success:
             frame = self.process_frame(frame)
-            # Obtains the pose of the object on the frame and overlays the object.
+            # Obtains the pose of the object on the
+            # frame and overlays the object.
             self._detect_and_get_pose(frame)
 
         while True:
@@ -625,25 +724,39 @@ class DetectAndGetPose:
 
             if success:
                 frame = self.process_frame(frame)
-                # Obtains the pose of the object on the frame and overlays the object.
+                # Obtains the pose of the object on the
+                # frame and overlays the object.
                 self._detect_and_get_pose(frame)
             else:
                 break
 
             # draw the text and timestamp on the frame
-            cv2.putText(frame, "Displaying dodecahedron with aprilgroup".format(), (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"),
-                (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            cv2.putText(
+                frame,
+                "Displaying dodecahedron with aprilgroup".format(),
+                (10, 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                2
+            )
+            cv2.putText(
+                frame,
+                datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"),
+                (10, frame.shape[0] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                (255, 255, 255),
+                1
+            )
 
             # Display the object itself with points overlaid onto the object
             cv2.imshow(window, self.img)
-            # Display the black frame window that shows a 3D drawing of the object
+            # Display the black frame window that shows a
+            # 3D drawing of the object
             cv2.imshow('image', self.draw_frame)
-        
+
             # if ESC clicked, break the loop
-            if  cv2.waitKey(1) == 27:
+            if cv2.waitKey(1) == 27:
                 cv2.destroyAllWindows()
                 break
-
-

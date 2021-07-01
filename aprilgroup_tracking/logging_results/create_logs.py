@@ -19,7 +19,8 @@ class CustomLogger(Logger):
     def __init__(
         self,
         log_file: str = None,
-        log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        log_format: str = "%(asctime)s - %(name)s - \
+                            %(levelname)s - %(message)s",
         *args,
         **kwargs
     ) -> None:
@@ -33,7 +34,8 @@ class CustomLogger(Logger):
         if log_file:
             self.addHandler(self.get_file_handler())
 
-        # with this pattern, it's rarely necessary to propagate the| error up to parent
+        # With this pattern, it's rarely necessary to propagate
+        # the| error up to parent
         self.propagate = False
 
     def get_console_handler(self):
@@ -53,4 +55,3 @@ class CustomLogger(Logger):
         file_handler = TimedRotatingFileHandler(self.log_file, when="midnight")
         file_handler.setFormatter(self.formatter)
         return file_handler
-        
