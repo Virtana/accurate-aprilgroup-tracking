@@ -567,11 +567,11 @@ class DetectAndGetPose:
         # Predicted translation
         self.logger.info("\n Translation: {} \n Translational Velocity: {} \n Acceleration: {}:".format(tvec, tran_vel, tran_acc))
 
-        tvec_pose = (tvec + tran_vel) + (0.05*tran_acc)
+        tvec_pose = (tvec + tran_vel) + (0.5*tran_acc)
 
         # Prediction rotation
         rot_mat, jac = cv2.Rodrigues(rvec)
-        rmax_pose = (rot_mat + rot_vel) + (0.05*rot_acc)
+        rmax_pose = (rot_mat + rot_vel) + (0.5*rot_acc)
         rvec_pose, jac = cv2.Rodrigues(rmax_pose)
 
         return (rvec_pose, tvec_pose)
