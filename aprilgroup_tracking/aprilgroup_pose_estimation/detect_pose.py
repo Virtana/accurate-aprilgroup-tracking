@@ -10,6 +10,10 @@ from pathlib import Path
 import datetime
 import time
 from typing import List, Dict, Tuple
+from numpy.testing import assert_array_almost_equal
+from copy import deepcopy
+# import the math module 
+from math import sqrt, sin, cos, atan, degrees, radians, pi, atan2, asin
 
 
 class DetectAndGetPose:
@@ -55,6 +59,9 @@ class DetectAndGetPose:
         self.draw_frame: np.ndarray             # 3D Drawing Frame
         # Previous Pose of Dodecahedron.
         self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None)
+
+        self.rot_velocities = []
+        self.tran_velocities = []
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
@@ -451,6 +458,127 @@ class DetectAndGetPose:
 
         return opointsArr
 
+    def _update_buffers(self, rot_vel, tran_vel, buf_size=2):
+        """
+        Adds rotational and translational velocities
+        to their respective buffers. Will remove old
+        items in the buffers based on buf_size
+        """
+        self.rot_velocities.append(rot_vel)
+        self.tran_velocities.append(tran_vel)
+        if len(self.rot_velocities) > buf_size:
+            self.rot_velocities.pop(0)
+            self.tran_velocities.pop(0)
+
+    def get_relative_trans(self, prev_rot_mat, t1, t0):
+        """Obtains the translational velocity between two frames.
+
+        Args:
+        prev_rot:
+            Previous frame rotation.
+        t0: 
+            First (or previous) Translation Vector.
+        t1:
+            Second (or current) Translation Vector.
+
+        Returns:
+        The translational velocity between two frames, when t = 0.
+        """
+
+        # Relative translation between frames
+        # tran_vel = (prev_rot_mat.T).dot(t1) - (prev_rot_mat.T).dot(t0)
+        tran_vel = (prev_rot_mat.T).dot(t0) - (prev_rot_mat.T).dot(t1)
+        print("tran vel ", tran_vel)
+
+        return tran_vel
+    
+    def get_relative_rot(self, r0, r1):
+        """Obtains the rotation matrix between two frames.
+
+        Args:
+        r0: 
+            First (or previous) Rotation.
+        r1:
+            Second (or current) Rotation.
+
+        Returns:
+        The relative rotation matrix between two frames,
+        also know as the rotational velocity in this case as t = 0.
+        """
+
+        r0_to_r1 = r1.dot(r0.T)
+        # r0_to_r1 = r0.dot(r1.T)
+
+        # Verify correctness: apply r0_to_r1 after r_0
+        assert_array_almost_equal(r1, r0_to_r1.dot(r0))
+        # assert_array_almost_equal(r0, r0_to_r1.dot(r1))
+
+        return r0_to_r1
+
+    def get_pose_vel_acc(self, curr_rvecs, prev_rvecs, curr_tvecs, prev_tvecs):
+        
+        # TODO: Optimise this funciton
+        success = False
+
+        # Obtain the rotation matrices 
+        prev_rmat, jac = cv2.Rodrigues(prev_rvecs)
+        curr_rmat, jac = cv2.Rodrigues(curr_rvecs)
+
+        # Translational Velocity
+        tran_vel = self.get_relative_trans(curr_rmat, curr_tvecs, prev_tvecs)
+
+        # Rotational Velocity
+        rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
+
+        # Add velocities to their respective buffers
+        self._update_buffers(rot_vel, tran_vel)
+
+        # ACCELERATION (Constant Acceleration)
+        # TODO: find length of translation or rotation, do some error checking
+        vel_len = len(self.tran_velocities)
+        if vel_len == 1:
+            tran_acc = self.tran_velocities[0]
+            rot_acc = self.rot_velocities[0]
+        elif vel_len > 1:
+            tran_acc = self.get_relative_trans(self.rot_velocities[vel_len-2], self.tran_velocities[vel_len-1], self.tran_velocities[vel_len-2])
+            rot_acc = self.get_relative_rot(self.rot_velocities[vel_len-2], self.rot_velocities[vel_len-1])
+
+        if vel_len:
+            success = True
+
+        return success, tran_vel, rot_vel, tran_acc, rot_acc
+
+    def apply_vel_acc(self, rvec, tvec, tran_vel, tran_acc, rot_vel, rot_acc):
+        """Applies the pose velocity and acceleration to the last pose.
+
+        Args:
+        rvec:
+        tvec:
+        tran_vel:
+        tran_acc:
+        rot_vel:
+        rot_acc:
+
+        Returns:
+        The predicted pose (rotation and translation)
+        """
+        # Equation used: (Last pose + pose velocity + 0.05*pose acceleration)
+
+        # Predicted translation
+        print("tvec ", tvec)
+        print("tran_vel ", tran_vel)
+        print("tran_acc ", tran_acc)
+
+        tvec_pose = (tvec + tran_vel) + (0.05*tran_acc)
+        print("tvec_pose ", tvec_pose)
+
+        # Prediction rotation
+        rot_mat, jac = cv2.Rodrigues(rvec)
+        rmax_pose = (rot_mat + rot_vel) + (0.05*rot_acc)
+        rvec_pose, jac = cv2.Rodrigues(rmax_pose)
+
+        return (rvec_pose, tvec_pose)
+
     def _obtain_detections(
         self,
         gray: np.ndarray
@@ -588,6 +716,9 @@ class DetectAndGetPose:
         and track the dodecahedron.
         """
 
+        # Copy prev_transform without changing the global variable
+        unchanged_prev_transform = deepcopy(self.prev_transform)
+
         if imgPointsArr and objPointsArr:
             objPointsArr = np.array(objPointsArr).reshape(-1, 3)  # Nx3 array
             imgPointsArr = np.array(imgPointsArr).reshape(-1, 2)  # Nx2 array
@@ -620,12 +751,25 @@ class DetectAndGetPose:
 
             # If pose was found successfully
             if success:
-                self.logger.info("Projecting 3D points onto the image plane.")
-                # Project the 3D points onto the image plane
-                self._project_draw_points(transformation)
+                # Can not be 'behind' barcode, or too far away
+                if transformation[1][2][0] > 0 and transformation[1][2][0] < 1000:
+                    self.logger.info("Projecting 3D points onto the image plane.")
+                    # Project the 3D points onto the image plane
+                    self._project_draw_points(transformation)
 
-                # Assign the previous pose to current pose
-                self.prev_transform = (pose_rvecs, pose_tvecs)
+                    # If this is the second frame, there would be no velocity or acc calculation
+                    if self.prev_transform[0] is None:
+                        # Assign the previous pose to current pose to obtain last pose
+                        self.prev_transform = transformation
+                    else:
+                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation[0], unchanged_prev_transform[0], transformation[1], unchanged_prev_transform[1])
+                        if good:
+                            self.logger.info("Obtained pose velocity and acceleration!")
+                            pred_transform = self.apply_vel_acc(pose_rvecs, pose_tvecs, tran_vel, tran_acc, rot_vel, rot_acc)
+                            self.logger.info("Predicted Transform {}:".format(pred_transform))
+
+                            # Assign the previous pose to predicted pose
+                            self.prev_transform = pred_transform
             else:
                 # Clear iteration if SolvePNP is 'bad'
                 pose_rvecs = None
