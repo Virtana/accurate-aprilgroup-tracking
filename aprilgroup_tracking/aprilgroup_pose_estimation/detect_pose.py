@@ -524,7 +524,7 @@ class DetectAndGetPose:
         curr_rmat, jac = cv2.Rodrigues(curr_rvecs)
 
         # Translational Velocity
-        tran_vel = self.get_relative_trans(curr_rmat, curr_tvecs, prev_tvecs)
+        tran_vel = self.get_relative_trans(prev_rmat, curr_tvecs, prev_tvecs)
 
         # Rotational Velocity
         rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
@@ -761,7 +761,7 @@ class DetectAndGetPose:
                         good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation[0], unchanged_prev_transform[0], transformation[1], unchanged_prev_transform[1])
                         if good:
                             self.logger.info("Obtained pose velocity and acceleration!")
-                            pred_transform = self.apply_vel_acc(pose_rvecs, pose_tvecs, tran_vel, tran_acc, rot_vel, rot_acc)
+                            pred_transform = self.apply_vel_acc(unchanged_prev_transform[0], unchanged_prev_transform[1], tran_vel, tran_acc, rot_vel, rot_acc)
                             self.logger.info("Predicted Transform {}:".format(pred_transform))
 
                             # Assign the previous pose to predicted pose
