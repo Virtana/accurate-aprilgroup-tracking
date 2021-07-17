@@ -486,9 +486,8 @@ class DetectAndGetPose:
         """
 
         # Relative translation between frames
-        # tran_vel = (prev_rot_mat.T).dot(t1) - (prev_rot_mat.T).dot(t0)
-        tran_vel = (prev_rot_mat.T).dot(t0) - (prev_rot_mat.T).dot(t1)
-        print("tran vel ", tran_vel)
+        tran_vel = (prev_rot_mat.T).dot(t1) - (prev_rot_mat.T).dot(t0)
+        # tran_vel = (prev_rot_mat.T).dot(t0) - (prev_rot_mat.T).dot(t1)
 
         return tran_vel
     
@@ -565,12 +564,9 @@ class DetectAndGetPose:
         # Equation used: (Last pose + pose velocity + 0.05*pose acceleration)
 
         # Predicted translation
-        print("tvec ", tvec)
-        print("tran_vel ", tran_vel)
-        print("tran_acc ", tran_acc)
+        self.logger.info("\n Translation: {} \n Translational Velocity: {} \n Acceleration: {}:".format(tvec, tran_vel, tran_acc))
 
         tvec_pose = (tvec + tran_vel) + (0.05*tran_acc)
-        print("tvec_pose ", tvec_pose)
 
         # Prediction rotation
         rot_mat, jac = cv2.Rodrigues(rvec)
