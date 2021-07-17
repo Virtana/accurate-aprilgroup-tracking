@@ -570,9 +570,12 @@ class DetectAndGetPose:
         tvec_pose = (tvec + tran_vel) + (0.5*tran_acc)
 
         # Prediction rotation
-        rot_mat, jac = cv2.Rodrigues(rvec)
-        rmax_pose = (rot_mat + rot_vel) + (0.5*rot_acc)
-        rvec_pose, jac = cv2.Rodrigues(rmax_pose)
+        rvec_vel, jac = cv2.Rodrigues(rot_vel)
+        rvec_acc, jac = cv2.Rodrigues(0.5*rot_acc)
+
+        self.logger.info("\n Rotation: {} \n Rotational Velocity: {} \n Acceleration: {}:".format(rvec, rvec_vel, rvec_acc))
+
+        rvec_pose = (rvec + rvec_vel) + (rvec_acc)
 
         return (rvec_pose, tvec_pose)
 
@@ -714,14 +717,14 @@ class DetectAndGetPose:
         """
 
         if imgPointsArr and objPointsArr:
-            objPointsArr = np.array(objPointsArr).reshape(-1, 3)  # Nx3 array
-            imgPointsArr = np.array(imgPointsArr).reshape(-1, 2)  # Nx2 array
+            objPointsArr = np.array(objPointsArr, dtype=np.float32).reshape(-1, 3)  # Nx3 array
+            imgPointsArr = np.array(imgPointsArr, dtype=np.float32).reshape(-1, 2)  # Nx2 array
 
             # Obtain the pose of the apriltag
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
             if self.extrinsic_guess[0] is None:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                success, pose_rvecs, pose_tvecs, inliers = cv2.solvePnPRansac(
                     objPointsArr,
                     imgPointsArr,
                     self.mtx,
@@ -729,7 +732,7 @@ class DetectAndGetPose:
                     flags=cv2.SOLVEPNP_ITERATIVE
                 )
             else:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                success, pose_rvecs, pose_tvecs, inliers = cv2.solvePnPRansac(
                     objPointsArr,
                     imgPointsArr,
                     self.mtx,
@@ -752,7 +755,7 @@ class DetectAndGetPose:
                     self._project_draw_points(transformation)
 
                     # If this is the second frame, there would be no velocity or acc calculation
-                    if self.prev_transform[0] is None:
+                    if self.extrinsic_guess[0] is None:
                         # Assign the previous pose to current pose to obtain last pose
                         # Used as an extrinisic guess
                         self.extrinsic_guess = transformation
