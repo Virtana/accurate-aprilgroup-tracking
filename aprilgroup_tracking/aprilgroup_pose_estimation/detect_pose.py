@@ -59,6 +59,7 @@ class DetectAndGetPose:
         self.draw_frame: np.ndarray             # 3D Drawing Frame
         # Previous Pose of Dodecahedron.
         self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None)
+        self.extrinsic_guess: Tuple(np.ndarray, np.ndarray) = (None, None)
 
         self.rot_velocities = []
         self.tran_velocities = []
@@ -712,9 +713,6 @@ class DetectAndGetPose:
         and track the dodecahedron.
         """
 
-        # Copy prev_transform without changing the global variable
-        unchanged_prev_transform = deepcopy(self.prev_transform)
-
         if imgPointsArr and objPointsArr:
             objPointsArr = np.array(objPointsArr).reshape(-1, 3)  # Nx3 array
             imgPointsArr = np.array(imgPointsArr).reshape(-1, 2)  # Nx2 array
@@ -722,7 +720,7 @@ class DetectAndGetPose:
             # Obtain the pose of the apriltag
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
-            if self.prev_transform[0] is None:
+            if self.extrinsic_guess[0] is None:
                 success, pose_rvecs, pose_tvecs = cv2.solvePnP(
                     objPointsArr,
                     imgPointsArr,
@@ -736,8 +734,8 @@ class DetectAndGetPose:
                     imgPointsArr,
                     self.mtx,
                     self.dist,
-                    self.prev_transform[0],
-                    self.prev_transform[1],
+                    self.extrinsic_guess[0],
+                    self.extrinsic_guess[1],
                     True,
                     flags=cv2.SOLVEPNP_ITERATIVE
                 )
@@ -756,16 +754,21 @@ class DetectAndGetPose:
                     # If this is the second frame, there would be no velocity or acc calculation
                     if self.prev_transform[0] is None:
                         # Assign the previous pose to current pose to obtain last pose
+                        # Used as an extrinisic guess
+                        self.extrinsic_guess = transformation
+                        # Obtain the last pose (used in the calculation for predicted pose)
                         self.prev_transform = transformation
                     else:
-                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation[0], unchanged_prev_transform[0], transformation[1], unchanged_prev_transform[1])
+                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation[0], self.prev_transform[0], transformation[1], self.prev_transform[1])
                         if good:
                             self.logger.info("Obtained pose velocity and acceleration!")
-                            pred_transform = self.apply_vel_acc(unchanged_prev_transform[0], unchanged_prev_transform[1], tran_vel, tran_acc, rot_vel, rot_acc)
+                            pred_transform = self.apply_vel_acc(self.prev_transform[0], self.prev_transform[1], tran_vel, tran_acc, rot_vel, rot_acc)
                             self.logger.info("Predicted Transform {}:".format(pred_transform))
 
                             # Assign the previous pose to predicted pose
-                            self.prev_transform = pred_transform
+                            self.extrinsic_guess = pred_transform
+                            # Obtain the last pose (used in the calculation for predicted pose)
+                            self.prev_transform = transformation
             else:
                 # Clear iteration if SolvePNP is 'bad'
                 pose_rvecs = None
