@@ -6,6 +6,7 @@ the pose of the aprilgroup, drawing, it onto an OpenCV window.
 import os
 from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration
+from calibration.calibrate_pentip import PenTipCalibrator
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
