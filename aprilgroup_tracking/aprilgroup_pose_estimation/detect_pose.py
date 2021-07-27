@@ -14,6 +14,7 @@ from numpy.testing import assert_array_almost_equal
 from copy import deepcopy
 # import the math module 
 from math import sqrt, sin, cos, atan, degrees, radians, pi, atan2, asin
+from aprilgroup_pose_estimation.optical_flow import OpticalFlow
 
 
 class DetectAndGetPose:
@@ -63,6 +64,8 @@ class DetectAndGetPose:
 
         self.rot_velocities = []
         self.tran_velocities = []
+
+        self.opt_flow = OpticalFlow()
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
@@ -845,7 +848,7 @@ class DetectAndGetPose:
             if success:
                 mean_error = self.compute_reprojection_error_1(objPointsArr, imgPointsArr, pose_rvecs, pose_tvecs)
                 self.logger.info("Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".format(mean_error, pose_rvecs, pose_tvecs))
-                if mean_error < 1:
+                if mean_error < 2:
                     self.logger.info("Projecting 3D points onto the image plane.")
                     # Project the 3D points onto the image plane
                     self._project_draw_points(transformation)
@@ -875,7 +878,7 @@ class DetectAndGetPose:
         else:
             self.extrinsic_guess = (None, None)
 
-    def _detect_and_get_pose(self, frame: np.ndarray) -> None:
+    def _detect_and_get_pose(self, frame: np.ndarray, useflow=False, out=None) -> None:
         """Obtains the pose of the dodecahedron.
 
         Obtains each frame from the camera,
@@ -892,7 +895,7 @@ class DetectAndGetPose:
         Pose and points of the AprilGroup overlayed on the dodecahedron
         object and the 3D drawing of the dodecahedron in a seperate window.
         """
-
+        
         # Get the frame from the Video
         self.img = frame
 
@@ -906,6 +909,16 @@ class DetectAndGetPose:
         # Obtain AprilGroup Detected and their respective
         # tag ids, image and object points
         imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
+
+        if useflow and self.opt_flow._did_ape_fail(tag_ids) and self.opt_flow.ids_buf:
+            print("Use flow and ape failed")
+            imgPointsArr, objPointsArr, tag_ids, out = self.opt_flow.find_more_corners(gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+
+        if tag_ids:
+            # Only update the queues with respective image, object points
+            # and tag ids when tag ids are obtained, this allows flow to be tracked
+            # for frames where no tag ids were detected.
+            self.opt_flow._update_flow_buffers(gray, imgPointsArr, objPointsArr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
         self._estimate_pose(imgPointsArr, objPointsArr)
@@ -927,7 +940,7 @@ class DetectAndGetPose:
 
         return frame
 
-    def overlay_camera(self) -> None:
+    def overlay_camera(self, useflow) -> None:
         """
 
         Creates a new camera window, to show both the pose estimation boxes
@@ -957,9 +970,10 @@ class DetectAndGetPose:
 
         if success:
             frame = self.process_frame(frame)
+            out = frame.copy()
             # Obtains the pose of the object on the
             # frame and overlays the object.
-            self._detect_and_get_pose(frame)
+            self._detect_and_get_pose(frame, useflow=useflow, out=out)
 
         while True:
 
@@ -967,9 +981,10 @@ class DetectAndGetPose:
 
             if success:
                 frame = self.process_frame(frame)
+                out = frame.copy()
                 # Obtains the pose of the object on the
                 # frame and overlays the object.
-                self._detect_and_get_pose(frame)
+                self._detect_and_get_pose(frame, useflow=useflow, out=out)
             else:
                 break
 
@@ -998,6 +1013,9 @@ class DetectAndGetPose:
             # Display the black frame window that shows a
             # 3D drawing of the object
             cv2.imshow('image', self.draw_frame)
+
+            if useflow:
+                cv2.imshow('Tracker', cv2.resize(out, (out.shape[1]//2, out.shape[0]//2)))  
 
             # if ESC clicked, break the loop
             if cv2.waitKey(1) == 27:
