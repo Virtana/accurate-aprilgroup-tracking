@@ -8,8 +8,8 @@ class Draw(object):
     detections and pose estimation.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, logger):
+        self.logger = logger
 
     def draw_boxes(self, imgpts: np.ndarray) -> None:
         """Draws the lines and edges on the april tag images
@@ -46,8 +46,12 @@ class Draw(object):
         ]).reshape(-1, 2)
 
         # Overlay Pose onto image
-        imgpts = np.round(imgpts).astype(int)
-        imgpts = [tuple(pt) for pt in imgpts.reshape(-1, 2)]
+        try:
+            imgpts = np.round(imgpts).astype(int)
+            imgpts = [tuple(pt) for pt in imgpts.reshape(-1, 2)]
+        except TypeError:
+            self.logger.debug(
+                "An error occured: {}".format(TypeError))
 
         # Draws lines within the edges given
         for i, j in edges:
@@ -73,14 +77,23 @@ class Draw(object):
         """
 
         # Overlay Pose onto image
-        ipoints = np.round(imgpts).astype(int)
-        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
+        try:
+            ipoints = np.round(imgpts).astype(int)
+            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
+        except TypeError:
+            self.logger.debug(
+                "An error occured: {}".format(TypeError))
 
         # Draw points obtained from cv2:projectPoints()
         # overlay onto the dodecahedron object itself.
-        for i in ipoints:
-            if i[1] >= 0 and i[1] < 720 and i[0] >= 0  and i[0] < 1280:
-                cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
+        try:
+            for i in ipoints:
+                if i[1] >= 0 and i[1] < 720 and i[0] >= 0  and i[0] < 1280:
+                    cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
+        except(RuntimeError, TypeError):
+            self.logger.debug(
+                "An error occured: {} {}".format(
+                    RuntimeError, TypeError))
 
         # Obtain the 4 points from the image points
         length = len(imgpts)
@@ -177,8 +190,12 @@ class Draw(object):
         """
 
         # Overlay Pose onto image
-        ipoints = np.round(imgpts).astype(int)
-        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
+        try:
+            ipoints = np.round(imgpts).astype(int)
+            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
+        except TypeError:
+            self.logger.debug(
+                "An error occured: {}".format(TypeError))
 
         # Draw 3-dimensional shape of the image
         a = np.array(ipoints)

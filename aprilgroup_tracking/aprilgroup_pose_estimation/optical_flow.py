@@ -210,22 +210,27 @@ class OpticalFlow(object):
             objpts = []
             ids = np.empty((0,1))
         for pid in prev_ids: # Loop for all of the markers found last frame
-            if pid not in ids: # If it was not found this frame, compute flow
-                self.logger.info("Tag ids were not found in frame.")
+            try:
+                if pid not in ids: # If it was not found this frame, compute flow
+                    self.logger.info("Tag ids were not found in frame.")
 
-                # Get previous image and object points
-                p0, objpts0 = self._get_p0(pid, -1)
+                    # Get previous image and object points
+                    p0, objpts0 = self._get_p0(pid, -1)
 
-                # Outlier removal using abs difference between frames
-                valid_p1, p1, st = self._outlier_removal(method, gray, p0)
+                    # Outlier removal using abs difference between frames
+                    valid_p1, p1, st = self._outlier_removal(method, gray, p0)
 
-                if valid_p1.shape[0] == 4: # If flow was found all 4 of the marker corners. 
-                    if out is not None:
-                        out = self._draw_flow(out, p0, p1, st)
+                    if valid_p1.shape[0] == 4: # If flow was found all 4 of the marker corners. 
+                        if out is not None:
+                            out = self._draw_flow(out, p0, p1, st)
 
-                    # Add the new find to the imgpts, objpts, and ids arrays
-                    imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
-                    ids.append(pid)
-                    objpts.append(objpts0)
+                        # Add the new find to the imgpts, objpts, and ids arrays
+                        imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
+                        ids.append(pid)
+                        objpts.append(objpts0)
+            except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
 
         return imgpts, objpts, ids, out

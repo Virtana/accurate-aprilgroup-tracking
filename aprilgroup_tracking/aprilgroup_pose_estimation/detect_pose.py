@@ -68,7 +68,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         """
 
         TransformHelper.__init__(self, logger, mtx, dist)
-        Draw.__init__(self)
+        Draw.__init__(self, logger)
         OpticalFlow.__init__(self, logger)
         
         self.logger = logger
@@ -123,24 +123,28 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             data = json.load(f)
 
         for key, tags in data['tags'].items():
-            # Size of the tags
-            tag_sizes = tags['size']
-            # Turning tvec into N x 1 array
-            tvecs = np.array(tags['extrinsics'][:3],
-                             dtype=np.float32).reshape((3, 1))
-            # Turning rvec into N x 1 array
-            rvecs = np.array(tags['extrinsics'][-3:],
-                             dtype=np.float32).reshape((3, 1))
-            # Add extrinsics to their specific tag_id
-            
-            extrinsics = self.add_values_in_dict(
-                                                 extrinsics,
-                                                 int(key),
-                                                 [tag_sizes,
-                                                  tvecs,
-                                                  rvecs]
-                                                )
-
+            try:
+                # Size of the tags
+                tag_sizes = tags['size']
+                # Turning tvec into N x 1 array
+                tvecs = np.array(tags['extrinsics'][:3],
+                                dtype=np.float32).reshape((3, 1))
+                # Turning rvec into N x 1 array
+                rvecs = np.array(tags['extrinsics'][-3:],
+                                dtype=np.float32).reshape((3, 1))
+                # Add extrinsics to their specific tag_id
+                
+                extrinsics = self.add_values_in_dict(
+                                                    extrinsics,
+                                                    int(key),
+                                                    [tag_sizes,
+                                                    tvecs,
+                                                    rvecs]
+                                                    )
+            except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
         # Closing file
         f.close()
 
@@ -164,25 +168,30 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         A Numpy Array that contains the undistorted frame.
         """
 
-        # Height and Width of the camera frame
-        h,  w = frame.shape[:2]
-        print("h", h, "w", w)
+        try:
+            # Height and Width of the camera frame
+            h,  w = frame.shape[:2]
+            print("h", h, "w", w)
 
-        # Get the camera matrix and distortion values
-        newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(
-                                                             self.mtx,
-                                                             self.dist,
-                                                             (w, h),
-                                                             1,
-                                                             (w, h)
-                                                            )
+            # Get the camera matrix and distortion values
+            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(
+                                                                self.mtx,
+                                                                self.dist,
+                                                                (w, h),
+                                                                1,
+                                                                (w, h)
+                                                                )
 
-        # Undistort Frame
-        dst = cv2.undistort(frame, self.mtx, self.dist, None, newCameraMatrix)
+            # Undistort Frame
+            dst = cv2.undistort(frame, self.mtx, self.dist, None, newCameraMatrix)
 
-        # Crop the image
-        x, y, w, h = roi
-        dst = dst[y:y+h, x:x+w]
+            # Crop the image
+            x, y, w, h = roi
+            dst = dst[y:y+h, x:x+w]
+        except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
 
         return dst
 
@@ -201,23 +210,28 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         obj_points = []
 
         for i in extrinsics:
-            # Dict key is tag id, with the tag size,
-            # tvec, rvec, respectively, appended
-            tag_size = extrinsics[i][0]
+            try:
+                # Dict key is tag id, with the tag size,
+                # tvec, rvec, respectively, appended
+                tag_size = extrinsics[i][0]
 
-            # Tuple with rvec (first in tuple) and
-            # tvec (second in tuple) transformation
-            transformation = (extrinsics[i][2], extrinsics[i][1])
+                # Tuple with rvec (first in tuple) and
+                # tvec (second in tuple) transformation
+                transformation = (extrinsics[i][2], extrinsics[i][1])
 
-            # 3D Initial Marker Points
-            initial_obj_pts = self.get_initial_pts(tag_size)
+                # 3D Initial Marker Points
+                initial_obj_pts = self.get_initial_pts(tag_size)
 
-            # Obtain 3D points in space for AprilGroup
-            marker_corners = self.transform_marker_corners(
-                                                           initial_obj_pts,
-                                                           transformation
-                                                          )
-            obj_points.append(marker_corners)
+                # Obtain 3D points in space for AprilGroup
+                marker_corners = self.transform_marker_corners(
+                                                            initial_obj_pts,
+                                                            transformation
+                                                            )
+                obj_points.append(marker_corners)
+            except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
 
         # Form needed to pass the object points into
         # cv2:solvePnP() and cv2:projectPoints()
@@ -269,30 +283,35 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         tran_acc = 0.0
         rot_acc = 0.0
 
-        # Obtain the rotation matrices 
-        prev_rmat = cv2.Rodrigues(prev_transform[0])[0]
-        curr_rmat = cv2.Rodrigues(curr_transform[0])[0]
+        try:
+            # Obtain the rotation matrices 
+            prev_rmat = cv2.Rodrigues(prev_transform[0])[0]
+            curr_rmat = cv2.Rodrigues(curr_transform[0])[0]
+            
+            # Translational Velocity
+            tran_vel = self.get_relative_trans(curr_rmat, curr_transform[1], prev_transform[1])
 
-        # Translational Velocity
-        tran_vel = self.get_relative_trans(curr_rmat, curr_transform[1], prev_transform[1])
+            # Rotational Velocity
+            rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
 
-        # Rotational Velocity
-        rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
+            # Add velocities to their respective queues
+            self._update_buffers(rot_vel, tran_vel)
 
-        # Add velocities to their respective queues
-        self._update_buffers(rot_vel, tran_vel)
-
-        # Calculate Acceleration (based on Constant Acceleration)
-        vel_len = len(self.tran_velocities)
-        if vel_len > 1:
-            success = True
-            tran_acc = self.get_relative_trans(
-                self.rot_velocities[vel_len-1], 
-                self.tran_velocities[vel_len-1], 
-                self.tran_velocities[vel_len-2])
-            rot_acc = self.get_relative_rot(
-                self.rot_velocities[vel_len-2], 
-                self.rot_velocities[vel_len-1])
+            # Calculate Acceleration (based on Constant Acceleration)
+            vel_len = len(self.tran_velocities)
+            if vel_len > 1:
+                success = True
+                tran_acc = self.get_relative_trans(
+                    self.rot_velocities[vel_len-1], 
+                    self.tran_velocities[vel_len-1], 
+                    self.tran_velocities[vel_len-2])
+                rot_acc = self.get_relative_rot(
+                    self.rot_velocities[vel_len-2], 
+                    self.rot_velocities[vel_len-1])
+        except(RuntimeError):
+                self.logger.debug(
+                    "An error occured: {}".format(
+                        RuntimeError))
 
         return success, tran_vel, rot_vel, tran_acc, rot_acc
 
@@ -324,26 +343,31 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         The predicted pose (rotation and translation)
         """
 
-        # Obtain half rotational acceleration
-        rot_acc_angle = self.rotation_matrix_to_euler_angles(rot_acc) / 2
-        rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
+        try:
+            # Obtain half rotational acceleration
+            rot_acc_angle = self.rotation_matrix_to_euler_angles(rot_acc) / 2
+            rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
 
-        # rvec needs to be rot matrix
-        rmat = cv2.Rodrigues(transformation[0])[0]
-        self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
+            # rvec needs to be rot matrix
+            rmat = cv2.Rodrigues(transformation[0])[0]
+            self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
 
-        # Obtain the extrinsic matrix containing rvec and tvec
-        ext_pose = self.get_extrinsic_matrix(rmat, transformation[1])
-        # Obtain the extrinsic matrix containing the pose velocities
-        ext_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
-        # Obtain the extrinsic matrix containing the pose accelerations
-        ext_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
+            # Obtain the extrinsic matrix containing rvec and tvec
+            ext_pose = self.get_extrinsic_matrix(rmat, transformation[1])
+            # Obtain the extrinsic matrix containing the pose velocities
+            ext_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
+            # Obtain the extrinsic matrix containing the pose accelerations
+            ext_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
 
-        # Apply the pose velocities and accelerations to the last pose
-        pred_pose = ext_acc @ ext_vel @ ext_pose
-        # Obtain the rmat and tvec from the extrinsic predicted pose
-        rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
-        rvec_pose = cv2.Rodrigues(rmat_pose)[0]
+            # Apply the pose velocities and accelerations to the last pose
+            pred_pose = ext_acc @ ext_vel @ ext_pose
+            # Obtain the rmat and tvec from the extrinsic predicted pose
+            rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
+            rvec_pose = cv2.Rodrigues(rmat_pose)[0]
+        except(RuntimeError):
+            self.logger.debug(
+                "An error occured: {}".format(
+                    RuntimeError))
 
         self.logger.info(
             "\n POSE_GUESS: \n{}\n{}".format(rvec_pose, tvec_pose))
@@ -387,7 +411,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             # If the camera was calibrated and the matrix is supplied
             if self.mtx is not None:
                 for i, detection in enumerate(detection_results):
-
+                    
                     # The higher decision margin, the better the detection
                     # (i.e. means more contrast within the tag).
                     if detection.decision_margin < 50:
@@ -412,7 +436,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     try:
                         markersize = self.extrinsics[detection.tag_id][0]
                     except:
-                      continue
+                        self.logger.debug("An error occured when retrieving the markersize.")
+                        continue
 
                     # Tuple with rvec (Rotation Vector of AprilTag) and
                     # tvec (Translation Vector of AprilTag) transformation
@@ -421,16 +446,20 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                         self.extrinsics[detection.tag_id][1]
                     )
 
-                    # Obtains the initial 3D points in space
-                    # for each detected AprilTag
-                    initial_obj_pts = self.get_initial_pts(markersize)
-                    # Obtain the object points (marker_corners)
-                    # of the apriltag detected via rotating and
-                    # translating the AprilGroup
-                    objpts = self.transform_marker_corners(
-                        initial_obj_pts,
-                        transformation
-                    )
+                    try:
+                        # Obtains the initial 3D points in space
+                        # for each detected AprilTag
+                        initial_obj_pts = self.get_initial_pts(markersize)
+                        # Obtain the object points (marker_corners)
+                        # of the apriltag detected via rotating and
+                        # translating the AprilGroup
+                        objpts = self.transform_marker_corners(
+                            initial_obj_pts,
+                            transformation
+                        )
+                    except:
+                        self.logger.debug("An error occured trying to obtain the object points.")
+                        continue
 
                     imgPointsArr.append(imagePoints)
                     objPointsArr.append(objpts)
@@ -454,14 +483,17 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             Obtains the 3D points projected onto the image plane to be drawn.
         """
 
-        # Project the 3D points onto the image plane
-        imgpts, jac = cv2.projectPoints(
-            self.opointsArr,
-            transformation[0],
-            transformation[1],
-            self.mtx,
-            self.dist
-        )
+        try:
+            # Project the 3D points onto the image plane
+            imgpts, jac = cv2.projectPoints(
+                self.opointsArr,
+                transformation[0],
+                transformation[1],
+                self.mtx,
+                self.dist
+            )
+        except:
+            self.logger.debug("An error occured during projection of points.")
 
         self.logger.info("Drawing the points...")
         # Draw the image points overlay onto the object and the 3D Drawing
@@ -493,31 +525,42 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         unchanged_prev_transform = deepcopy(self.prev_transform)
 
         if imgPointsArr and objPointsArr:
-            objPointsArr = np.array(objPointsArr, dtype=np.float32).reshape(-1, 3)  # Nx3 array
-            imgPointsArr = np.array(imgPointsArr, dtype=np.float32).reshape(-1, 2)  # Nx2 array
+
+            try:
+                objPointsArr = np.array(objPointsArr, dtype=np.float32).reshape(-1, 3)  # Nx3 array
+                imgPointsArr = np.array(imgPointsArr, dtype=np.float32).reshape(-1, 2)  # Nx2 array
+            except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
 
             # Obtain the pose of the apriltag
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
-            if self.extrinsic_guess[0] is None:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
-                    objPointsArr,
-                    imgPointsArr,
-                    self.mtx,
-                    self.dist,
-                    flags=cv2.SOLVEPNP_ITERATIVE
-                )
-            else:
-                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
-                    objPointsArr,
-                    imgPointsArr,
-                    self.mtx,
-                    self.dist,
-                    self.extrinsic_guess[0],
-                    self.extrinsic_guess[1],
-                    True,
-                    flags=cv2.SOLVEPNP_ITERATIVE
-                )
+            try:
+                if self.extrinsic_guess[0] is None:
+                    success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                        objPointsArr,
+                        imgPointsArr,
+                        self.mtx,
+                        self.dist,
+                        flags=cv2.SOLVEPNP_ITERATIVE
+                    )
+                else:
+                    success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                        objPointsArr,
+                        imgPointsArr,
+                        self.mtx,
+                        self.dist,
+                        self.extrinsic_guess[0],
+                        self.extrinsic_guess[1],
+                        True,
+                        flags=cv2.SOLVEPNP_ITERATIVE
+                    )
+            except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError, ))
 
             transformation = (pose_rvecs, pose_tvecs)
             # TEST
@@ -528,33 +571,38 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             
             # If pose was found successfully
             if success:
-                mean_error = self.get_reprojection_error(objPointsArr, imgPointsArr, transformation)
-                self.logger.info("Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".format(mean_error, pose_rvecs, pose_tvecs))
-                if mean_error < 2:
-                    self.means.append(mean_error)
-                    self.logger.info("Projecting 3D points onto the image plane.")
-                    # Project the 3D points onto the image plane
-                    self._project_draw_points(transformation)
+                try:
+                    mean_error = self.get_reprojection_error(objPointsArr, imgPointsArr, transformation)
+                    self.logger.info("Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".format(mean_error, pose_rvecs, pose_tvecs))
+                    if mean_error < 2:
+                        self.means.append(mean_error)
+                        self.logger.info("Projecting 3D points onto the image plane.")
+                        # Project the 3D points onto the image plane
+                        self._project_draw_points(transformation)
 
-                    # If this is the second frame, there would be no velocity or acc calculation
-                    if self.extrinsic_guess[0] is None:
-                        # Assign the previous pose to current pose to obtain last pose
-                        # Used as an extrinisic guess
-                        self.extrinsic_guess = transformation
+                        # If this is the second frame, there would be no velocity or acc calculation
+                        if self.extrinsic_guess[0] is None:
+                            # Assign the previous pose to current pose to obtain last pose
+                            # Used as an extrinisic guess
+                            self.extrinsic_guess = transformation
+                        else:
+                            good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation, unchanged_prev_transform)
+                            if good:
+                                self.logger.info("Obtained pose velocity and acceleration!")
+                                pred_transform = self.apply_vel_acc(unchanged_prev_transform, tran_vel, tran_acc, rot_vel, rot_acc)
+                                self.logger.info("Predicted Transform {}:".format(pred_transform))
+
+                                # Assign the previous pose to predicted pose
+                                self.extrinsic_guess = pred_transform
+                        # Obtain the last pose (used in the calculation for predicted pose)
+                        self.prev_transform = transformation
                     else:
-                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation, unchanged_prev_transform)
-                        if good:
-                            self.logger.info("Obtained pose velocity and acceleration!")
-                            pred_transform = self.apply_vel_acc(unchanged_prev_transform, tran_vel, tran_acc, rot_vel, rot_acc)
-                            self.logger.info("Predicted Transform {}:".format(pred_transform))
-
-                            # Assign the previous pose to predicted pose
-                            self.extrinsic_guess = pred_transform
-                    # Obtain the last pose (used in the calculation for predicted pose)
-                    self.prev_transform = transformation
-                else:
-                    # Clear iteration if SolvePNP is 'bad'
-                    self.extrinsic_guess = (None, None)
+                        # Clear iteration if SolvePNP is 'bad'
+                        self.extrinsic_guess = (None, None)
+                except(RuntimeError, TypeError):
+                    self.logger.debug(
+                        "An error occured: {} {}".format(
+                            RuntimeError, TypeError))
         else:
             self.extrinsic_guess = (None, None)
 
@@ -588,11 +636,21 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Obtain AprilGroup Detected and their respective
         # tag ids, image and object points
-        imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
+        try:
+            imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
+        except(RuntimeError, TypeError):
+                self.logger.debug(
+                    "An error occured: {} {}".format(
+                        RuntimeError, TypeError))
         
-        if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
-            print("Use flow and ape failed")
-            imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+        try:
+            if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
+                print("Use flow and ape failed")
+                imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+        except(RuntimeError, TypeError):
+            self.logger.debug(
+                "An error occured: {} {}".format(
+                    RuntimeError, TypeError))
 
         if tag_ids:
             # Only update the queues with respective image, object points
@@ -653,17 +711,20 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             self._detect_and_get_pose(frame, useflow=useflow, out=out)
 
         while True:
+            
+            try:
+                success, frame = cap.read()
 
-            success, frame = cap.read()
-
-            if success:
-                frame = self.process_frame(frame)
-                out = frame.copy()
-                # Obtains the pose of the object on the
-                # frame and overlays the object.
-                self._detect_and_get_pose(frame, useflow=useflow, out=out)
-            else:
-                break
+                if success:
+                    frame = self.process_frame(frame)
+                    out = frame.copy()
+                    # Obtains the pose of the object on the
+                    # frame and overlays the object.
+                    self._detect_and_get_pose(frame, useflow=useflow, out=out)
+                else:
+                    break
+            except:
+                continue
 
             # draw the text and timestamp on the frame
             cv2.putText(

@@ -80,7 +80,7 @@ class TransformHelper(object):
         """
 
         # Convert rotation vector to rotation matrix (markerworld -> cam-world)
-        mrv, jacobian = cv2.Rodrigues(transformation[0])
+        mrv = cv2.Rodrigues(transformation[0])[0]
 
         # Apply rotation to 3D points in space
         app_rot_mat = object_pts @ mrv.T
@@ -103,12 +103,17 @@ class TransformHelper(object):
 
         # Obtains the project image points for the object
         # points and transformation given
-        project_points, _ = cv2.projectPoints(
-            obj_points, 
-            transformation[0], 
-            transformation[1], 
-            self.mtx, 
-            self.dist)
+        try:
+            project_points, _ = cv2.projectPoints(
+                obj_points, 
+                transformation[0], 
+                transformation[1], 
+                self.mtx, 
+                self.dist)
+        except(RuntimeError, TypeError):
+            self.logger.debug(
+                "An error occured: {} {}".format(
+                    RuntimeError, TypeError))
 
         # Reshape to fit numpy functions
         project_points = project_points.reshape(-1, 2)
@@ -168,7 +173,12 @@ class TransformHelper(object):
         """
 
         # Relative translation between frames
-        tran_vel = (rot_mat.T) @ (t0 - t1)
+        try:
+            tran_vel = (rot_mat.T) @ (t0 - t1)
+        except(RuntimeError, TypeError):
+            self.logger.debug(
+                "An error occured: {} {}".format(
+                    RuntimeError, TypeError))
 
         return tran_vel
     
@@ -186,7 +196,12 @@ class TransformHelper(object):
         also know as the rotational velocity in this case as t = 0.
         """
 
-        r0_to_r1 = r1.T @ r0
+        try:
+            r0_to_r1 = r1.T @ r0
+        except(RuntimeError, TypeError):
+            self.logger.debug(
+                "An error occured: {} {}".format(
+                    RuntimeError, TypeError))
 
         return r0_to_r1
 
