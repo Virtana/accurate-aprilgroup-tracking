@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from typing import List, Dict, Tuple
 from numpy.testing import assert_array_almost_equal
-# import the math module 
+# import the math module
 from math import sqrt, sin, cos, atan2
 
 
@@ -18,8 +18,8 @@ class TransformHelper(object):
 
     def __init__(self, logger, mtx, dist):
         self.logger = logger
-        self.mtx: np.ndarray = mtx              
-        self.dist: np.ndarray = dist 
+        self.mtx: np.ndarray = mtx
+        self.dist: np.ndarray = dist
 
     def add_values_in_dict(
         self,
@@ -92,23 +92,23 @@ class TransformHelper(object):
         return tran_mat
 
     def get_reprojection_error(
-        self, 
-        obj_points, 
-        img_points, 
+        self,
+        obj_points,
+        img_points,
         transformation
     ) -> float:
-        """Calculates the reprojection error betwen 
+        """Calculates the reprojection error betwen
         the object and image points given the object pose.
         """
 
         # Obtains the project image points for the object
-        # points and transformation given
+        # points and transformation given.
         try:
             project_points, _ = cv2.projectPoints(
-                obj_points, 
-                transformation[0], 
-                transformation[1], 
-                self.mtx, 
+                obj_points,
+                transformation[0],
+                transformation[1],
+                self.mtx,
                 self.dist)
         except(RuntimeError, TypeError):
             self.logger.debug(
@@ -120,9 +120,9 @@ class TransformHelper(object):
 
         # Calculates the average reprojection error
         reprojection_error_avg = sum(
-            [np.linalg.norm(img_points[i] - project_points[i])  
-            for i in range (len(project_points))]) / len(project_points)
-        
+            [np.linalg.norm(img_points[i] - project_points[i])
+                for i in range(len(project_points))]) / len(project_points)
+
         return reprojection_error_avg
 
     def get_extrinsic_matrix(self, rmat, tvec):
@@ -134,13 +134,12 @@ class TransformHelper(object):
         [R3,1 R3,2 R3,3 T3]
         [0     0    0    1].
         """
-        
+
         extrinsic_mat = np.vstack(
             (np.hstack(
-                (rmat, tvec)), 
-                np.array([0, 0, 0, 1])
+                (rmat, tvec)),
+                np.array([0, 0, 0, 1]))
             )
-        )
         self.logger.info(
             "\n Rmat: {} \n Tvec: {}".format(rmat, tvec))
         self.logger.info(
@@ -153,7 +152,8 @@ class TransformHelper(object):
         and translation vector from an extrinsic matrix.
         """
         rel_rot_mat = extrinsic_mat[0:3, 0:3]
-        rel_tvec = np.array(extrinsic_mat[0:3,3], dtype=np.float32).reshape(3, -1)
+        rel_tvec = np.array(
+            extrinsic_mat[0:3, 3], dtype=np.float32).reshape(3, -1)
 
         return rel_rot_mat, rel_tvec
 
@@ -163,7 +163,7 @@ class TransformHelper(object):
         Args:
         prev_rot:
             Previous frame rotation.
-        t0: 
+        t0:
             First (or previous) Translation Vector.
         t1:
             Second (or current) Translation Vector.
@@ -181,12 +181,12 @@ class TransformHelper(object):
                     RuntimeError, TypeError))
 
         return tran_vel
-    
+
     def get_relative_rot(self, r0, r1):
         """Obtains the rotation matrix between two frames.
 
         Args:
-        r0: 
+        r0:
             First (or previous) Rotation.
         r1:
             Second (or current) Rotation.
@@ -208,15 +208,15 @@ class TransformHelper(object):
     @staticmethod
     def euler_angles_to_rotation_matrix(theta):
         """Calculates Rotation Matrix given euler angles."""
-    
-        r_x = np.array([[1,         0,                  0         ],
-                        [0,         cos(theta[0]), -sin(theta[0]) ],
-                        [0,         sin(theta[0]), cos(theta[0])  ]
+
+        r_x = np.array([[1,                 0,                  0],
+                        [0,         cos(theta[0]), -sin(theta[0])],
+                        [0,         sin(theta[0]),  cos(theta[0])]
                         ])
 
-        r_y = np.array([[cos(theta[1]),    0,      sin(theta[1])  ],
-                        [0,                1,      0              ],
-                        [-sin(theta[1]),   0,      cos(theta[1])  ]
+        r_y = np.array([[cos(theta[1]),    0,      sin(theta[1])],
+                        [0,                1,      0],
+                        [-sin(theta[1]),   0,      cos(theta[1])]
                         ])
 
         r_z = np.array([[cos(theta[2]),    -sin(theta[2]),    0],
@@ -234,17 +234,17 @@ class TransformHelper(object):
         The result is the same as MATLAB except the order
         of the euler angles ( x and z are swapped ).
         """
-        sy = sqrt(rmat[0,0] * rmat[0,0] +  rmat[1,0] * rmat[1,0])
+        sy = sqrt(rmat[0, 0] * rmat[0, 0] + rmat[1, 0] * rmat[1, 0])
 
         singular = sy < 1e-6
 
-        if  not singular :
-            x = atan2(rmat[2,1] , rmat[2,2])
-            y = atan2(-rmat[2,0], sy)
-            z = atan2(rmat[1,0], rmat[0,0])
-        else :
-            x = atan2(-rmat[1,2], rmat[1,1])
-            y = atan2(-rmat[2,0], sy)
+        if not singular:
+            x = atan2(rmat[2, 1], rmat[2, 2])
+            y = atan2(-rmat[2, 0], sy)
+            z = atan2(rmat[1, 0], rmat[0, 0])
+        else:
+            x = atan2(-rmat[1, 2], rmat[1, 1])
+            y = atan2(-rmat[2, 0], sy)
             z = 0
 
         return np.array([x, y, z])

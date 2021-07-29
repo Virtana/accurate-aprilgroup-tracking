@@ -4,7 +4,7 @@ import apriltag
 
 
 class Draw(object):
-    """Provides drawing methods for AprilTag 
+    """Provides drawing methods for AprilTag
     detections and pose estimation.
     """
 
@@ -88,7 +88,7 @@ class Draw(object):
         # overlay onto the dodecahedron object itself.
         try:
             for i in ipoints:
-                if i[1] >= 0 and i[1] < 720 and i[0] >= 0  and i[0] < 1280:
+                if i[1] >= 0 and i[1] < 720 and i[0] >= 0 and i[0] < 1280:
                     cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
         except(RuntimeError, TypeError):
             self.logger.debug(
@@ -110,12 +110,12 @@ class Draw(object):
             points = [ptA, ptB, ptC, ptD]
             skip = False
             for point in points:
-              if (point[0] >= max_width or point[0] < 0
-                  or point[1] >= max_height or point[1] < 0):
-                skip = True
-                break
+                if (point[0] >= max_width or point[0] < 0 or
+                    point[1] >= max_height or point[1] < 0):
+                        skip = True
+                        break
             if skip:
-              continue
+                continue
 
             # Draw the 3D form of the dodecahedron from the image points
             # obtained on a second frame

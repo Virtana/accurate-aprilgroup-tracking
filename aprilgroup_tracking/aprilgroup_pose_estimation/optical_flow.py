@@ -20,7 +20,8 @@ class OpticalFlow(object):
         imgpts_buf: Saves the image points (imgpts) from AprilTag detections.
         objpts_buf: Saves the object points for the respective tag ids.
         ids_buf: Saves the tag ids detected.
-        flow_params: Optical flow params used in Pyramidal Lucas Kanade algorithm.
+        flow_params: Optical flow params used in
+                    Pyramidal Lucas Kanade algorithm.
     """
 
     def __init__(self, logger):
@@ -31,9 +32,10 @@ class OpticalFlow(object):
         self.ids_buf: List[object] = []
 
         self.flow_params = dict(
-                winSize = (21, 21),
-                maxLevel = 3,
-                criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
+                winSize=(21, 21),
+                maxLevel=3,
+                criteria=(
+                    cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
                 )
 
     def _did_ape_fail(self, ids) -> bool:
@@ -44,16 +46,16 @@ class OpticalFlow(object):
         return len(ids) <= 1
 
     def _update_flow_buffers(
-        self, 
-        gray, 
-        imgpts, 
-        objpts, 
-        ids, 
+        self,
+        gray,
+        imgpts,
+        objpts,
+        ids,
         buf_size=5
     ) -> None:
         """
-        Adds gray, imgpts, objpts, and ids to their respective queues. 
-        Will remove old items in the buffers based on buf_size
+        Adds gray, imgpts, objpts, and ids to their respective queues.
+        Will remove old items in the buffers based on buf_size.
         """
 
         self.gray_buf.append(gray)
@@ -81,22 +83,22 @@ class OpticalFlow(object):
         st:
             The status return value from cv2.calcOpticalFlowPyrLK()
         """
-        
+
         # TODO: What happens when the valid p1 and p0 are of different shapes?
-        valid_p1 = p1[st==1]
-        valid_p0 = p0[st==1]
+        valid_p1 = p1[st == 1]
+        valid_p0 = p0[st == 1]
         for i in range(valid_p0.shape[0]):
-            start = tuple(valid_p0[i,:].astype(np.int))
-            end = tuple(valid_p1[i,:].astype(np.int))
-            color = (255, 0, 255) 
+            start = tuple(valid_p0[i, :].astype(np.int))
+            end = tuple(valid_p1[i, :].astype(np.int))
+            color = (255, 0, 255)
             thickness = 10
             img = cv2.arrowedLine(img, start, end, color, thickness)
         return img
 
     def _get_p0(self, pid, buf_index) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Indexes the buffers to retrieve the image and object points associated with a
-        given tag id.
+        Indexes the buffers to retrieve the image and
+        object points associated with a given tag id.
 
         Args:
         pid:
@@ -104,7 +106,7 @@ class OpticalFlow(object):
         buf_index:
             int, the index of the buffer to use as the last frame
         """
-        
+
         # Retrieve the previus ids, imgpts and objpts
         prev_ids = self.ids_buf[buf_index]
         prev_imgpts = self.imgpts_buf[buf_index]
@@ -115,76 +117,93 @@ class OpticalFlow(object):
             if j == pid:
                 p_index = i
 
-        # Obtain the points for the respective pid      
-        p0 = np.array(prev_imgpts[p_index], dtype=np.float32).reshape(-1,1,2)
+        # Obtain the points for the respective pid
+        p0 = np.array(prev_imgpts[p_index], dtype=np.float32).reshape(-1, 1, 2)
         objpts0 = prev_objpts[p_index]
 
         return p0, objpts0
 
-    def _outlier_removal(self, method, gray, p0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Removes points where the tracking error or 
-        velocity vector is too large. 
+    def _outlier_removal(
+        self,
+        method,
+        gray,
+        p0
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Removes points where the tracking error or
+        velocity vector is too large.
         """
 
-        p1, st, err = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, p0, None, **self.flow_params)
+        p1, st, err = cv2.calcOpticalFlowPyrLK(
+            self.gray_buf[-1], gray, p0, None, **self.flow_params)
 
         if method == "opencv":
-        # Finds the difference between thr previous frame and the tracking 
-        # from the current frame to the previous frame. 
-        # If the values obtained is < 1, they are removed.
-                
+            # Finds the difference between thr previous frame and the tracking
+            # from the current frame to the previous frame.
+            # If the values obtained is < 1, they are removed.
+
             # Outlier removal using abs difference between frames
-            p0r, st, err = cv2.calcOpticalFlowPyrLK(gray, self.gray_buf[-1], p1, None, **self.flow_params)
+            p0r, st, err = cv2.calcOpticalFlowPyrLK(
+                gray, self.gray_buf[-1], p1, None, **self.flow_params)
 
             diff = abs(p0-p0r).reshape(-1, 2).max(-1)
             good = diff < 1
 
-            self.logger.info("Difference: {} \n Good: {} \n".format(diff, good))
+            self.logger.info(
+                "Difference: {} \n Good: {} \n".format(diff, good))
             valid_p1 = np.asarray(p1[good], dtype='float32').reshape(-1, 2)
             self.logger.info("Valid points: {}".format(valid_p1))
 
         elif method == "velocity_vectors":
-        # Finds the difference between the tracked points and the 
-        # previous frame. If the values are < 3 standard deviations 
-        # from the mean, they are rejected. Using these trusted points
-        # cv2:calcOpticalFlowPyrLK() is recalled and the same outlier removal
-        # is used.
+            # Finds the difference between the tracked points and the
+            # previous frame. If the values are < 3 standard deviations
+            # from the mean, they are rejected. Using these trusted points
+            # cv2:calcOpticalFlowPyrLK() is recalled and the same outlier
+            # removal is used.
 
             # Velocity Vector
             vel_vec = abs(p1-p0).reshape(-1, 2).max(-1)
-            self.logger.info("3 Std Dev from mean: [{}]".format(vel_vec.mean() + 3 * vel_vec.std()))
+            self.logger.info(
+                "3 Std Dev from mean: [{}]".format(
+                    vel_vec.mean() + 3 * vel_vec.std()))
 
-            valid_first_pass = np.asarray(p1[vel_vec < vel_vec.mean() + 3 * vel_vec.std()], dtype='float32').reshape(-1, 2)
-            self.logger.info("Valid first pass: {}".format(valid_first_pass))
+            valid_first_pass = np.asarray(
+                p1[vel_vec < vel_vec.mean() + 3 * vel_vec.std()],
+                dtype='float32').reshape(-1, 2)
+            self.logger.info(
+                "Valid first pass: {}".format(valid_first_pass))
 
             # Re-initialise with trusted predictions
-            p1, st, err = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, valid_first_pass, None, **self.flow_params)
+            p1, st, err = cv2.calcOpticalFlowPyrLK(
+                self.gray_buf[-1], gray,
+                valid_first_pass, None, **self.flow_params)
 
             # Perform same outlier removal
             vel_vec2 = abs(p1-valid_first_pass).reshape(-1, 2).max(-1)
-            valid_p1 = np.asarray(p1[vel_vec2 < (vel_vec2.mean() + 3 * vel_vec2.std())], dtype='float32').reshape(-1, 2)
+            valid_p1 = np.asarray(
+                p1[vel_vec2 < (vel_vec2.mean() + 3 * vel_vec2.std())],
+                dtype='float32').reshape(-1, 2)
             self.logger.info("Valid second pass: {}".format(valid_p1))
 
         return valid_p1, p1, st
 
     def _get_more_imgpts(
-        self, 
-        gray, 
-        imgpts, 
-        objpts, 
-        ids, 
+        self,
+        gray,
+        imgpts,
+        objpts,
+        ids,
         out=None
     ) -> Tuple[List[object], List[object], List[object], np.ndarray]:
         """
-        The grayscale image, image and object points, and tag ids found via APE are used
-        in optical flow to find more image points.
+        The grayscale image, image and object points, and tag ids
+        found via APE are used in optical flow to find more image points.
         Checking the tag ids, image and object points buffers, if there
         are previous points successfully saved, the the tag ids
-        that are not detected in the current frame are tracked. 
+        that are not detected in the current frame are tracked.
 
-        If the optical flow is successful after outlier removal, the new image points,
-        respective object points and tag ids are added to their arrays and sent 
-        to solvePnP() to estimate a pose.
+        If the optical flow is successful after outlier removal, the new image
+        points, respective object points and tag ids are added to their arrays
+        and sent to solvePnP() to estimate a pose.
 
         Returns the current image points, object points
         and ids arrays with the new values added.
@@ -195,23 +214,25 @@ class OpticalFlow(object):
 
         if ids is None:
             return None, None, None, out
-        
+
         if len(self.gray_buf) == 0:
             # Cannot compute optical flow without history in the buffers
             return imgpts, objpts, ids, out
 
         if self.ids_buf[-1] is None:
-            # Cannot compute optical flow if the last frame contains zero found markers
+            # Cannot compute optical flow if the last frame
+            # contains zero found markers
             return imgpts, objpts, ids, out
-        
+
         prev_ids = self.ids_buf[-1]
         if ids is None:
             imgpts = []
             objpts = []
-            ids = np.empty((0,1))
-        for pid in prev_ids: # Loop for all of the markers found last frame
+            ids = np.empty((0, 1))
+        for pid in prev_ids:  # Loop for all of the markers found last frame
             try:
-                if pid not in ids: # If it was not found this frame, compute flow
+                # If it was not found this frame, compute flow
+                if pid not in ids:
                     self.logger.info("Tag ids were not found in frame.")
 
                     # Get previous image and object points
@@ -220,11 +241,12 @@ class OpticalFlow(object):
                     # Outlier removal using abs difference between frames
                     valid_p1, p1, st = self._outlier_removal(method, gray, p0)
 
-                    if valid_p1.shape[0] == 4: # If flow was found all 4 of the marker corners. 
+                    # If flow was found all 4 of the marker corners
+                    if valid_p1.shape[0] == 4:
                         if out is not None:
                             out = self._draw_flow(out, p0, p1, st)
 
-                        # Add the new find to the imgpts, objpts, and ids arrays
+                        # Add to the imgpts, objpts, and ids arrays
                         imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
                         ids.append(pid)
                         objpts.append(objpts0)
