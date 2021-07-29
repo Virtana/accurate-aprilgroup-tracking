@@ -27,9 +27,10 @@ from copy import deepcopy
 # Import necessary classes
 from aprilgroup_pose_estimation.transform_helper import TransformHelper
 from aprilgroup_pose_estimation.draw import Draw
+from aprilgroup_pose_estimation.optical_flow import OpticalFlow
 
 
-class DetectAndGetPose(TransformHelper, Draw):
+class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
@@ -68,6 +69,7 @@ class DetectAndGetPose(TransformHelper, Draw):
 
         TransformHelper.__init__(self, logger, mtx, dist)
         Draw.__init__(self, logger)
+        OpticalFlow.__init__(self, logger)
 
         self.logger = logger
         self.mtx: np.ndarray = mtx              # Camera matrix
@@ -613,7 +615,7 @@ class DetectAndGetPose(TransformHelper, Draw):
             self.extrinsic_guess = (None, None)
 
     def _detect_and_get_pose(
-        self, frame: np.ndarray,
+        self, frame: np.ndarray, useflow=False, out=None
     ) -> None:
         """Obtains the pose of the dodecahedron.
 
@@ -648,6 +650,21 @@ class DetectAndGetPose(TransformHelper, Draw):
             imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
         except(RuntimeError, TypeError) as error:
             raise error
+
+        try:
+            if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
+                print("Use flow and ape failed")
+                imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(
+                    gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+        except(RuntimeError, TypeError) as error:
+            raise error
+
+        if tag_ids:
+            # Only update the queues with respective image, object points
+            # and tag ids when tag ids are obtained, this allows flow
+            # to be tracked for frames where no tag ids were detected.
+            self._update_flow_buffers(
+                gray, imgPointsArr, objPointsArr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
         self._estimate_pose(imgPointsArr, objPointsArr)
@@ -696,9 +713,10 @@ class DetectAndGetPose(TransformHelper, Draw):
 
         if success:
             frame = self.process_frame(frame)
+            out = frame.copy()
             # Obtains the pose of the object on the
             # frame and overlays the object.
-            self._detect_and_get_pose(frame)
+            self._detect_and_get_pose(frame, useflow=useflow, out=out)
 
         while True:
 
@@ -707,9 +725,10 @@ class DetectAndGetPose(TransformHelper, Draw):
 
                 if success:
                     frame = self.process_frame(frame)
+                    out = frame.copy()
                     # Obtains the pose of the object on the
                     # frame and overlays the object.
-                    self._detect_and_get_pose(frame)
+                    self._detect_and_get_pose(frame, useflow=useflow, out=out)
                 else:
                     break
             except:
@@ -740,6 +759,10 @@ class DetectAndGetPose(TransformHelper, Draw):
             # Display the black frame window that shows a
             # 3D drawing of the object
             cv.imshow('image', self.draw_frame)
+
+            if useflow:
+                cv.imshow('Tracker', cv.resize(
+                    out, (out.shape[1]//2, out.shape[0]//2)))
 
             # if ESC clicked, break the loop
             if cv.waitKey(1) == 27:
