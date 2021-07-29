@@ -201,6 +201,7 @@ class Calibration:
         """
         # Reprojection Error
         mean_error = 0
+        errors = []
 
         for i in range(len(self.objpoints)):
             imgpoints2, _ = cv2.projectPoints(
@@ -213,7 +214,10 @@ class Calibration:
                 self.imgpoints[i],
                 imgpoints2,
                 cv2.NORM_L2)/len(imgpoints2)
+            errors.append(error)
             mean_error += error
 
+        self.logger.info("Errors: {}".format(
+            errors))
         self.logger.info("Total error: {}".format(
             mean_error/len(self.objpoints)))
