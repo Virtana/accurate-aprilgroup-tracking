@@ -1,14 +1,34 @@
 import numpy as np
 import cv2
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 
-class OpticalFlow:
 
-    def __init__(self):
-        self.gray_buf = []
-        self.corners_buf = []
-        self.objpts_buf = []
-        self.ids_buf = []
+class OpticalFlow(object):
+    """Tracks the flow of the dodecaPen when <=1 AprilTags are detected.
+
+    This Class checks if APE fails, once it does it tracks the flow
+    using the tag ids saved in a buffer. The tracked points are
+    tested and outliers are removed. The new points that are accepted
+    are then added to the image points array, with the respective object points
+    and sent to the estimate pose function.
+
+    If no tag was detected in a frame, the previous tag id is used to track
+    the flow.
+
+    Attributes:
+        gray_buf: Saves gray frames.
+        imgpts_buf: Saves the image points (imgpts) from AprilTag detections.
+        objpts_buf: Saves the object points for the respective tag ids.
+        ids_buf: Saves the tag ids detected.
+        flow_params: Optical flow params used in Pyramidal Lucas Kanade algorithm.
+    """
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.gray_buf: List[object] = []
+        self.imgpts_buf: List[object] = []
+        self.objpts_buf: List[object] = []
+        self.ids_buf: List[object] = []
 
         self.flow_params = dict(
                 winSize = (21, 21),
@@ -16,45 +36,51 @@ class OpticalFlow:
                 criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
                 )
 
-    def _did_ape_fail(self, ids):
-        '''
+    def _did_ape_fail(self, ids) -> bool:
+        """
         Returns True if aproximate pose estimation fails.
-        '''
+        """
 
-        if len(ids) <= 1:
-            return  True
-        else:
-            return False
+        return len(ids) <= 1
 
-    def _update_flow_buffers(self, gray, corners, objpts, ids, buf_size=5):
-        '''
-        Adds gray, corners, and ids to their respective queues. Will remove old
-        items in the buffers based on buf_size
-        '''
+    def _update_flow_buffers(
+        self, 
+        gray, 
+        imgpts, 
+        objpts, 
+        ids, 
+        buf_size=5
+    ) -> None:
+        """
+        Adds gray, imgpts, objpts, and ids to their respective queues. 
+        Will remove old items in the buffers based on buf_size
+        """
+
         self.gray_buf.append(gray)
-        self.corners_buf.append(corners)
+        self.imgpts_buf.append(imgpts)
         self.objpts_buf.append(objpts)
         self.ids_buf.append(ids)
 
         if len(self.ids_buf) > buf_size:
             self.gray_buf.pop(0)
-            self.corners_buf.pop(0)
+            self.imgpts_buf.pop(0)
             self.objpts_buf.pop(0)
             self.ids_buf.pop(0)
 
-    def draw_flow(self, img, p0, p1, st):
-        '''
+    def _draw_flow(self, img, p0, p1, st) -> np.ndarray:
+        """
         A helper method for visualizing optical flow.
+
         Args:
         img:
             The image to draw on (can be color)
         p0:
-            The set of marker corners from the previous frame
+            The set of image points from the previous frame
         p1:
-            The set of marker corners from this frame
+            The set of image points from this frame
         st:
             The status return value from cv2.calcOpticalFlowPyrLK()
-        '''
+        """
         
         # TODO: What happens when the valid p1 and p0 are of different shapes?
         valid_p1 = p1[st==1]
@@ -67,105 +93,139 @@ class OpticalFlow:
             img = cv2.arrowedLine(img, start, end, color, thickness)
         return img
 
-    def _get_p0(self, pid, buf_index):
-        '''
+    def _get_p0(self, pid, buf_index) -> Tuple[np.ndarray, np.ndarray]:
+        """
         Indexes the buffers to retrieve the image and object points associated with a
-        given marker id.
+        given tag id.
+
         Args:
         pid:
-            int, marker id
+            int, tag id
         buf_index:
             int, the index of the buffer to use as the last frame
-        '''
+        """
+        
+        # Retrieve the previus ids, imgpts and objpts
         prev_ids = self.ids_buf[buf_index]
-        prev_corners = self.corners_buf[buf_index]
+        prev_imgpts = self.imgpts_buf[buf_index]
         prev_objpts = self.objpts_buf[buf_index]
 
+        # Obtain the index for the pid
         for i, j in enumerate(prev_ids):
             if j == pid:
                 p_index = i
-                
-        p0 = np.array(prev_corners[p_index], dtype=np.float32).reshape(-1,1,2)
+
+        # Obtain the points for the respective pid      
+        p0 = np.array(prev_imgpts[p_index], dtype=np.float32).reshape(-1,1,2)
         objpts0 = prev_objpts[p_index]
 
         return p0, objpts0
 
-    def find_more_corners(self, gray, corners, objpts, ids, out=None):
-        '''
-        Given a grayscale image and the corners and ids found via APE, use optical flow
-        to find additional corners.
-        Looks back at the buffers to see which markers were successfully detected last frame,
-        but were not detected this frame. Then uses optical flow to find these markers in the
-        next frame, where APE failed. If optical flow is successfull, the new corners and id are
-        added to the corners and ids arrays respectively.
-        
-        Returns the original corners and ids arrays with the new values founded (via optical flow) added.
-        Returns:
-        corners - A list of 4x1x2 np.ndarray objects representing to four corners of each marker
-        ids - A Nx1 list of ids of each marker. The n-th id corresponds to the corners[n] corner positions
-        '''
+    def _outlier_removal(self, method, gray, p0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Removes points where the tracking error or 
+        velocity vector is too large. 
+        """
+
+        p1, st, err = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, p0, None, **self.flow_params)
+
+        if method == "opencv":
+        # Finds the difference between thr previous frame and the tracking 
+        # from the current frame to the previous frame. 
+        # If the values obtained is < 1, they are removed.
+                
+            # Outlier removal using abs difference between frames
+            p0r, st, err = cv2.calcOpticalFlowPyrLK(gray, self.gray_buf[-1], p1, None, **self.flow_params)
+
+            diff = abs(p0-p0r).reshape(-1, 2).max(-1)
+            good = diff < 1
+
+            self.logger.info("Difference: {} \n Good: {} \n".format(diff, good))
+            valid_p1 = np.asarray(p1[good], dtype='float32').reshape(-1, 2)
+            self.logger.info("Valid points: {}".format(valid_p1))
+
+        elif method == "velocity_vectors":
+        # Finds the difference between the tracked points and the 
+        # previous frame. If the values are < 3 standard deviations 
+        # from the mean, they are rejected. Using these trusted points
+        # cv2:calcOpticalFlowPyrLK() is recalled and the same outlier removal
+        # is used.
+
+            # Velocity Vector
+            vel_vec = abs(p1-p0).reshape(-1, 2).max(-1)
+            self.logger.info("3 Std Dev from mean: [{}]".format(vel_vec.mean() + 3 * vel_vec.std()))
+
+            valid_first_pass = np.asarray(p1[vel_vec < vel_vec.mean() + 3 * vel_vec.std()], dtype='float32').reshape(-1, 2)
+            self.logger.info("Valid first pass: {}".format(valid_first_pass))
+
+            # Re-initialise with trusted predictions
+            p1, st, err = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, valid_first_pass, None, **self.flow_params)
+
+            # Perform same outlier removal
+            vel_vec2 = abs(p1-valid_first_pass).reshape(-1, 2).max(-1)
+            valid_p1 = np.asarray(p1[vel_vec2 < (vel_vec2.mean() + 3 * vel_vec2.std())], dtype='float32').reshape(-1, 2)
+            self.logger.info("Valid second pass: {}".format(valid_p1))
+
+        return valid_p1, p1, st
+
+    def _get_more_imgpts(
+        self, 
+        gray, 
+        imgpts, 
+        objpts, 
+        ids, 
+        out=None
+    ) -> Tuple[List[object], List[object], List[object], np.ndarray]:
+        """
+        The grayscale image, image and object points, and tag ids found via APE are used
+        in optical flow to find more image points.
+        Checking the tag ids, image and object points buffers, if there
+        are previous points successfully saved, the the tag ids
+        that are not detected in the current frame are tracked. 
+
+        If the optical flow is successful after outlier removal, the new image points,
+        respective object points and tag ids are added to their arrays and sent 
+        to solvePnP() to estimate a pose.
+
+        Returns the current image points, object points
+        and ids arrays with the new values added.
+        """
+
+        # TODO: Add as argparser?
+        method = "opencv"
 
         if ids is None:
             return None, None, None, out
         
         if len(self.gray_buf) == 0:
-            print("gray buf is none")
-            # cannot compute optical flow without history in the buffers
-            return corners, objpts, ids, out
+            # Cannot compute optical flow without history in the buffers
+            return imgpts, objpts, ids, out
 
         if self.ids_buf[-1] is None:
-            # cannot compute optical flow if the last frame contains zero found markers
-            return corners, objpts, ids, out
+            # Cannot compute optical flow if the last frame contains zero found markers
+            return imgpts, objpts, ids, out
         
         prev_ids = self.ids_buf[-1]
-        print("prev ids", prev_ids)
         if ids is None:
-            corners = []
+            imgpts = []
             objpts = []
             ids = np.empty((0,1))
-        for pid in prev_ids: # loop for all of the markers found last frame
-            p_index = None
-            print("pid", pid)
-            print("curr ids", ids)
-            if pid not in ids: # if it was not found this frame, compute flow
-                print("not found in frame")
-                # get previos image and object points
+        for pid in prev_ids: # Loop for all of the markers found last frame
+            if pid not in ids: # If it was not found this frame, compute flow
+                self.logger.info("Tag ids were not found in frame.")
+
+                # Get previous image and object points
                 p0, objpts0 = self._get_p0(pid, -1)
 
                 # Outlier removal using abs difference between frames
-                p1, st, err = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, p0, None, **self.flow_params)
-                p0r, st, err = cv2.calcOpticalFlowPyrLK(gray, self.gray_buf[-1], p1, None, **self.flow_params)
-                d = abs(p0-p0r).reshape(-1, 2).max(-1)
-                good = d < 1
-                print("d: {} \ngood: {} \n".format(d, good))
-
-                valid_p1 = np.asarray(p1[d < 1], dtype='float32').reshape(-1, 2)
-                print("valid p1", valid_p1)
-
-                # Testing velocity vector:
-                vel_vec = abs(p1-p0).reshape(-1, 2).max(-1)
-                print("velocity vector: ", vel_vec)
-                std_from_mean = vel_vec.mean() + 3 * vel_vec.std()
-                print("3 std from mean: [", std_from_mean, "]")
-
-                valid_p1_test = np.asarray(p1[vel_vec < std_from_mean], dtype='float32').reshape(-1, 2)
-                # Initialise with trusted predictions
-                p2, st2, err2 = cv2.calcOpticalFlowPyrLK(self.gray_buf[-1], gray, valid_p1_test, None, **self.flow_params)
-                # Outlier removal
-                vel_vec2 = abs(p2-valid_p1_test).reshape(-1, 2).max(-1)
-                valid_p2_test = np.asarray(p2[vel_vec2 < vel_vec2.mean() + 3 * vel_vec2.std()], dtype='float32').reshape(-1, 2)
-                print("valid p1 vel vec: ", valid_p1_test)
-                print("p2: ", p2)
-                print("valid p2 vel vec: ", valid_p2_test)
+                valid_p1, p1, st = self._outlier_removal(method, gray, p0)
 
                 if valid_p1.shape[0] == 4: # If flow was found all 4 of the marker corners. 
                     if out is not None:
-                        out = self.draw_flow(out, p0, p1, st)
+                        out = self._draw_flow(out, p0, p1, st)
 
-                    # Add the new find to the corners and ids arrays
-                    corners.append(np.array(valid_p1[np.newaxis, :, :]))
+                    # Add the new find to the imgpts, objpts, and ids arrays
+                    imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
                     ids.append(pid)
-
                     objpts.append(objpts0)
 
-        return corners, objpts, ids, out
+        return imgpts, objpts, ids, out

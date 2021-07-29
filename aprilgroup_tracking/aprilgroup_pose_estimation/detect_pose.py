@@ -1,5 +1,18 @@
-"""
-Detects and Estimates the Pose of the AprilGroup attached to a Dodecahedron.
+"""This module detects AprilTags and estimates their poses.
+
+TODO: Leave one blank line.  The rest of this docstring should contain an
+overall description of the module or program.  Optionally, it may also
+contain a brief description of exported classes and functions and/or usage
+examples.
+
+    Typical usage example:
+
+    To use flow, set useflow to True. 
+    If the user wishes to test APE alone, set useflow to False.
+
+        useflow = True
+        det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
+        det_pose.overlay_camera(useflow)
 """
 
 import json
@@ -10,14 +23,14 @@ from pathlib import Path
 import datetime
 import time
 from typing import List, Dict, Tuple
-from numpy.testing import assert_array_almost_equal
 from copy import deepcopy
-# import the math module 
-from math import sqrt, sin, cos, atan, degrees, radians, pi, atan2, asin
+# Import necessary classes 
+from aprilgroup_pose_estimation.transform_helper import TransformHelper
+from aprilgroup_pose_estimation.draw import Draw
 from aprilgroup_pose_estimation.optical_flow import OpticalFlow
 
 
-class DetectAndGetPose:
+class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
@@ -53,6 +66,11 @@ class DetectAndGetPose:
         the predefined AprilGroup Extrinsics and the AprilGroup
         Object Points.
         """
+
+        TransformHelper.__init__(self, logger, mtx, dist)
+        Draw.__init__(self)
+        OpticalFlow.__init__(self, logger)
+        
         self.logger = logger
         self.mtx: np.ndarray = mtx              # Camera matrix
         self.dist: np.ndarray = dist            # Camera distortions
@@ -61,11 +79,14 @@ class DetectAndGetPose:
         # Previous Pose of Dodecahedron.
         self.prev_transform: Tuple(np.ndarray, np.ndarray) = (None, None)
         self.extrinsic_guess: Tuple(np.ndarray, np.ndarray) = (None, None)
-
-        self.rot_velocities = []
-        self.tran_velocities = []
-
-        self.opt_flow = OpticalFlow()
+        # Used to save rotational and translation velocities
+        self.rot_velocities: List[object] = []
+        self.tran_velocities: List[object] = []
+        
+        # just for testing, delete afterwards
+        self.means = []
+        self._rmats = []
+        self._tvecs = []
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
@@ -87,55 +108,10 @@ class DetectAndGetPose:
         # and obtain the aprilgroup object points
         self.opointsArr = self.get_all_points(self.extrinsics)
 
-    def add_values_in_dict(
-        self,
-        sample_dict: Dict,
-        key: int,
-        list_of_values: List[object]
-    ) -> Dict:
-        """Appends multiple values to a key in the given dictionary
-
-        Args:
-        sample_dict:
-            Dictionary to add the values to.
-        key:
-            The key in the dictionary.
-        list_of_values:
-            The values to be assigned to a specific key.
-
-        Returns:
-        A dict mapping keys to the corresponding data
-        fetched. For example:
-
-        {'key1': ('Key1 Data1', 'Key1 Data2'),
-        'key2': ('Key2 Data1', 'Key2 Data2'),
-        'key3': ('Key3 Data1', 'Key4 Data2')}
-
-        """
-
-        if key not in sample_dict:
-            sample_dict[key] = list()
-        sample_dict[key].extend(list_of_values)
-
-        return sample_dict
-
     def get_extrinsics(self) -> Dict:
         """Obtains the tag sizes, rvecs and tvecs for each apriltag
-        from the .json file
-
-        Args:
-        JSON_FILE:
-            The json file to be used to obtain the extrinsics.
-
-        Returns:
-        A dict with all the extrinsic values paired to their
-        corresponding tag_id. For example:
-
-        {
-            '205': (0.017834, [[0.443 0.122 0.124]], [[0.755 0.1684 0.074]]),
-            '200': (0.018393, [[0.094 0.353 0.775]], [[0.0024 0.0544 0.09]])
-        }
-
+        from the .json file and provides a dict with all the 
+        extrinsic values paired to their corresponding tag_id.
         """
 
         # Extrinsics Dict
@@ -156,6 +132,7 @@ class DetectAndGetPose:
             rvecs = np.array(tags['extrinsics'][-3:],
                              dtype=np.float32).reshape((3, 1))
             # Add extrinsics to their specific tag_id
+            
             extrinsics = self.add_values_in_dict(
                                                  extrinsics,
                                                  int(key),
@@ -189,6 +166,7 @@ class DetectAndGetPose:
 
         # Height and Width of the camera frame
         h,  w = frame.shape[:2]
+        print("h", h, "w", w)
 
         # Get the camera matrix and distortion values
         newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(
@@ -207,234 +185,6 @@ class DetectAndGetPose:
         dst = dst[y:y+h, x:x+w]
 
         return dst
-
-    def draw_boxes(self, imgpts: np.ndarray) -> None:
-        """Draws the lines and edges on the april tag images
-        to show the pose estimations.
-
-        Args:
-        self.img:
-            The image containing dodecahedron with apriltags attached.
-        self.imgpts:
-            Image points of the AprilGroup returned from cv2:ProjectPoints().
-        self.dist:
-            Distortion Coefficients from Calibrated Camera.
-
-        Returns:
-        3D Boxes that shows the AprilGroup detected and the pose estimated.
-        """
-
-        # Bounding box for AprilTag, this will display a
-        # 3D cube on detected AprilTags
-        # in the pose direction
-        edges = np.array([
-            0, 1,
-            1, 2,
-            2, 3,
-            3, 0,
-            0, 4,
-            1, 5,
-            2, 6,
-            3, 7,
-            4, 5,
-            5, 6,
-            6, 7,
-            7, 4
-        ]).reshape(-1, 2)
-
-        # Overlay Pose onto image
-        imgpts = np.round(imgpts).astype(int)
-        imgpts = [tuple(pt) for pt in imgpts.reshape(-1, 2)]
-
-        # Draws lines within the edges given
-        for i, j in edges:
-            cv2.line(self.img, imgpts[i], imgpts[j], (0, 255, 0), 1, 16)
-
-    def draw_squares_and_3d_pts(self, imgpts: np.ndarray) -> None:
-        """Extracts the bounding box (x, y)-image points
-        returned from cv2:projectPoints() for the AprilGroup
-        and convert each of the (x, y)-coordinate pairs to integers.
-
-        Args:
-        self.img:
-            Original frame data.
-        self.draw_frame:
-            Second window to display 3D drawing of the Dodecahedron.
-        imgpts:
-            Image points returned from cv2:projectPoints
-            (mapping 3D to 2D points).
-
-        Returns:
-        Bounding box to form a 3D Dodecahedron drawing,
-        and image points overlay on the AprilGroup Detected.
-        """
-
-        # Overlay Pose onto image
-        ipoints = np.round(imgpts).astype(int)
-        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
-
-        # Draw points obtained from cv2:projectPoints()
-        # overlay onto the dodecahedron object itself.
-        for i in ipoints:
-            if i[1] >= 0 and i[1] < 720 and i[0] >= 0  and i[0] < 1280:
-                cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
-
-        # Obtain the 4 points from the image points
-        length = len(imgpts)
-        for i in range(0, length, 4):
-            (ptA, ptB, ptC, ptD) = imgpts[i:i+4].reshape(-1, 2)
-            ptB = (int(ptB[0]), int(ptB[1]))
-            ptC = (int(ptC[0]), int(ptC[1]))
-            ptD = (int(ptD[0]), int(ptD[1]))
-            ptA = (int(ptA[0]), int(ptA[1]))
-
-            # Skip drawing if any points are out-of-frame
-            max_width = self.draw_frame.shape[1]
-            max_height = self.draw_frame.shape[0]
-            points = [ptA, ptB, ptC, ptD]
-            skip = False
-            for point in points:
-              if (point[0] >= max_width or point[0] < 0
-                  or point[1] >= max_height or point[1] < 0):
-                skip = True
-                break
-            if skip:
-              continue
-
-            # Draw the 3D form of the dodecahedron from the image points
-            # obtained on a second frame
-            cv2.line(
-                self.draw_frame,
-                ptA, ptB, (255, 255, 255),
-                5, cv2.LINE_AA)
-            cv2.line(
-                self.draw_frame,
-                ptB, ptC, (255, 255, 255),
-                5, cv2.LINE_AA)
-            cv2.line(
-                self.draw_frame,
-                ptC, ptD, (255, 255, 255),
-                5, cv2.LINE_AA)
-            cv2.line(
-                self.draw_frame,
-                ptD, ptA, (255, 255, 255),
-                5, cv2.LINE_AA)
-
-    def draw_corners(self, detection: apriltag.Detection) -> None:
-        """Extracts the bounding box (x, y)-coordinates for the AprilTag
-        and convert each of the (x, y)-coordinate pairs to integers.
-
-        Args:
-        self.img:
-            Original frame data.
-        detections:
-            AprilTag detections found via the AprilTag library.
-
-        Returns:
-        Bounding box with center point and tag id shown overlay
-        on each AprilTag detection.
-        """
-
-        # For all detections, get the corners and draw the
-        # bounding box, center and tag id
-
-        # AprilTag Corners (Image Points)
-        (ptA, ptB, ptC, ptD) = detection.corners
-        ptB = (int(ptB[0]), int(ptB[1]))
-        ptC = (int(ptC[0]), int(ptC[1]))
-        ptD = (int(ptD[0]), int(ptD[1]))
-        ptA = (int(ptA[0]), int(ptA[1]))
-
-        # Draw the bounding box of the AprilTag detection
-        cv2.line(self.img, ptA, ptB, (0, 255, 0), 5)
-        cv2.line(self.img, ptB, ptC, (0, 255, 0), 5)
-        cv2.line(self.img, ptC, ptD, (0, 255, 0), 5)
-        cv2.line(self.img, ptD, ptA, (0, 255, 0), 5)
-
-        # Draw the center (x, y)-coordinates of the AprilTag
-        (cX, cY) = (int(detection.center[0]), int(detection.center[1]))
-        cv2.circle(self.img, (cX, cY), 5, (0, 255, 255), -1)
-
-        # Draw the tag family on the image
-        tag_id = "ID: {}".format(detection.tag_id)
-        cv2.putText(self.img, tag_id, (ptA[0], ptA[1] - 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-    def draw_contours(self, imgpts: np.ndarray) -> None:
-        """Draws the contour shape of the image onto the second openCV window.
-
-        Args:
-        draw_frame:
-            Second window to display 3D drawing of the Dodecahedron.
-        imgpts:
-            Coordinates of 3D points projected on 2D image plane.
-
-        Returns:
-        3-Dimensional shape of the image drawn on the second window.
-        """
-
-        # Overlay Pose onto image
-        ipoints = np.round(imgpts).astype(int)
-        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
-
-        # Draw 3-dimensional shape of the image
-        a = np.array(ipoints)
-        cv2.drawContours(self.draw_frame, [a], 0, (255, 255, 255), -1)
-
-    def get_initial_pts(self, markersize: float) -> np.ndarray:
-        """Obtains the initial 3D points in space of AprilTags.
-
-        Args:
-        markersize:
-            Size of the apriltag.
-
-        Returns:
-        Initial 3D points of AprilTags.
-        """
-
-        # AprilTag Radius
-        mhalf = markersize / 2.0
-
-        # AprilTag Initial 3D points in space
-        ob_pt1 = [-mhalf, -mhalf, 0.0]  # Lower left in marker world
-        ob_pt2 = [-mhalf, mhalf, 0.0]   # Upper left in marker world
-        ob_pt3 = [mhalf,  mhalf, 0.0]   # Upper right in marker world
-        ob_pt4 = [mhalf,  -mhalf, 0.0]  # Lower right in marker world
-        ob_pts = ob_pt1 + ob_pt2 + ob_pt3 + ob_pt4
-        object_pts = np.array(ob_pts).reshape(4, 3)
-
-        return object_pts
-
-    def transform_marker_corners(
-        self,
-        object_pts: np.ndarray,
-        transformation: Tuple[np.ndarray, np.ndarray]
-    ) -> np.ndarray:
-        """Rotates and Translates the apriltag by the rotation
-        and translation vectors given.
-
-        Args:
-        object_pts:
-            Initial 3D points in space
-        transformation:
-            Rotation and Translation vector, respectively, of the apriltag.
-
-        Returns:
-        3D points of Apriltag after rotation and translation has been applied,
-        to be supplied to solvePnP() to obtain the pose of the apriltag.
-        """
-
-        # Convert rotation vector to rotation matrix (markerworld -> cam-world)
-        mrv, jacobian = cv2.Rodrigues(transformation[0])
-
-        # Apply rotation to 3D points in space
-        app_rot_mat = object_pts @ mrv.T
-
-        # Apply Translation to 3D points in space
-        tran_vec = transformation[1].reshape(-1, 3)
-        tran_mat = app_rot_mat + tran_vec
-
-        return tran_mat
 
     def get_all_points(self, extrinsics: Dict) -> np.ndarray:
         """Get all the points from the .json file and obtain the object points.
@@ -475,89 +225,43 @@ class DetectAndGetPose:
 
         return opointsArr
 
-    def compute_reprojection_error_1(self, obj_points, img_points, prvecs, ptvecs):
-
-        project_points, _ = cv2.projectPoints(obj_points, prvecs, ptvecs, self.mtx, self.dist)
-        project_points = project_points.reshape(-1, 2)
-
-        reprojection_error_avg = sum([np.linalg.norm(img_points[i] - project_points[i])  for i in range (len(project_points))]) / len(project_points)
-        
-        return reprojection_error_avg
-
-    def _update_buffers(self, rot_vel, tran_vel, buf_size=2):
+    def _update_buffers(self, rot_vel, tran_vel, buf_size=2) -> None:
         """
         Adds rotational and translational velocities
         to their respective queues. Will remove old
         items in the buffers based on buf_size
         """
+        
         self.rot_velocities.append(rot_vel)
         self.tran_velocities.append(tran_vel)
         if len(self.rot_velocities) > buf_size:
             self.rot_velocities.pop(0)
-            self.tran_velocities.pop(0)
+            self.tran_velocities.pop(0)  
 
-    def get_extrinsic_matrix(self, rmat, tvec):
-        """
-        Returns the extrinsic matrix containing the rotational matrix
-        and translation vector, along with [0, 0, 0, 1].
-        """
-        
-        extrinsic_mat = np.vstack((np.hstack((rmat, tvec)), np.array([0, 0, 0, 1])))
-        self.logger.info("\n Rmat: {} \n Tvec: {}".format(rmat, tvec))
-        self.logger.info("\n Extrinsic Matrix OBTAINED: {}".format(extrinsic_mat))
-
-        return extrinsic_mat
-
-    def get_rmat_tvec(self, extrinsic_mat):
-        """ Extracts the rvec and tvec from an extrinsic matrix.
-        """
-        rel_rot_mat = extrinsic_mat[0:3, 0:3]
-        rel_tvec = np.array(extrinsic_mat[0:3,3], dtype=np.float32).reshape(3, -1)
-
-        return rel_rot_mat, rel_tvec
-
-    def get_relative_trans(self, rot_mat, t1, t0):
-        """Obtains the translational velocity between two frames.
+    def get_pose_vel_acc(
+        self, 
+        curr_transform,
+        prev_transform
+    ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Obtains the pose velocity and acceleration.
 
         Args:
-        prev_rot:
-            Previous frame rotation.
-        t0: 
-            First (or previous) Translation Vector.
-        t1:
-            Second (or current) Translation Vector.
+        curr_transform:
+            Current frame's transformation.
+        prev_transform:
+            Previous frame's transformation.
 
         Returns:
-        The translational velocity between two frames, when t = 0.
+        Success, the translational velocity and acceleration,
+        and rotational velocity and acceleration.
         """
-
-        # Relative translation between frames
-        tran_vel = (rot_mat.T) @ (t0 - t1)
-
-        return tran_vel
-    
-    def get_relative_rot(self, r0, r1):
-        """Obtains the rotation matrix between two frames.
-
-        Args:
-        r0: 
-            First (or previous) Rotation.
-        r1:
-            Second (or current) Rotation.
-
-        Returns:
-        The relative rotation matrix between two frames,
-        also know as the rotational velocity in this case as t = 0.
-        """
-
-        r0_to_r1 = r1.T @ r0
-
-        return r0_to_r1
-
-    def get_pose_vel_acc(self, curr_rvecs, prev_rvecs, curr_tvecs, prev_tvecs):
         
-        self.logger.info("Prev pose: rvecs: {}, \n tvecs: {}".format(prev_rvecs, prev_tvecs))
-        self.logger.info("Curr pose: rvecs: {}, \n tvecs: {}".format(curr_rvecs, curr_tvecs))
+        self.logger.info(
+            "Prev pose: rvecs: {}, \n tvecs: {}".format(
+                prev_transform[0], prev_transform[1]))
+        self.logger.info(
+            "Curr pose: rvecs: {}, \n tvecs: {}".format(
+                curr_transform[0], curr_transform[1]))
 
         success = False
         tran_vel = 0.0
@@ -566,11 +270,11 @@ class DetectAndGetPose:
         rot_acc = 0.0
 
         # Obtain the rotation matrices 
-        prev_rmat, jac = cv2.Rodrigues(prev_rvecs)
-        curr_rmat, jac = cv2.Rodrigues(curr_rvecs)
+        prev_rmat = cv2.Rodrigues(prev_transform[0])[0]
+        curr_rmat = cv2.Rodrigues(curr_transform[0])[0]
 
         # Translational Velocity
-        tran_vel = self.get_relative_trans(curr_rmat, curr_tvecs, prev_tvecs)
+        tran_vel = self.get_relative_trans(curr_rmat, curr_transform[1], prev_transform[1])
 
         # Rotational Velocity
         rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
@@ -582,81 +286,54 @@ class DetectAndGetPose:
         vel_len = len(self.tran_velocities)
         if vel_len > 1:
             success = True
-            tran_acc = self.get_relative_trans(self.rot_velocities[vel_len-1], self.tran_velocities[vel_len-1], self.tran_velocities[vel_len-2])
-            rot_acc = self.get_relative_rot(self.rot_velocities[vel_len-2], self.rot_velocities[vel_len-1])
+            tran_acc = self.get_relative_trans(
+                self.rot_velocities[vel_len-1], 
+                self.tran_velocities[vel_len-1], 
+                self.tran_velocities[vel_len-2])
+            rot_acc = self.get_relative_rot(
+                self.rot_velocities[vel_len-2], 
+                self.rot_velocities[vel_len-1])
 
         return success, tran_vel, rot_vel, tran_acc, rot_acc
 
-    @staticmethod
-    def eulerAnglesToRotationMatrix(theta):
-        """Calculates Rotation Matrix given euler angles."""
-    
-        R_x = np.array([[1,         0,                  0         ],
-                        [0,         cos(theta[0]), -sin(theta[0]) ],
-                        [0,         sin(theta[0]), cos(theta[0])  ]
-                        ])
-
-        R_y = np.array([[cos(theta[1]),    0,      sin(theta[1])  ],
-                        [0,                1,      0              ],
-                        [-sin(theta[1]),   0,      cos(theta[1])  ]
-                        ])
-
-        R_z = np.array([[cos(theta[2]),    -sin(theta[2]),    0],
-                        [sin(theta[2]),    cos(theta[2]),     0],
-                        [0,                     0,            1]
-                        ])
-
-        R = np.dot(R_z, np.dot( R_y, R_x ))
-        return R
-
-    @staticmethod
-    def rotationMatrixToEulerAngles(R):
-        """Calculates rotation matrix to euler angles.
-
-        The result is the same as MATLAB except the order
-        of the euler angles ( x and z are swapped ).
-        """
-        sy = sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
-
-        singular = sy < 1e-6
-
-        if  not singular :
-            x = atan2(R[2,1] , R[2,2])
-            y = atan2(-R[2,0], sy)
-            z = atan2(R[1,0], R[0,0])
-        else :
-            x = atan2(-R[1,2], R[1,1])
-            y = atan2(-R[2,0], sy)
-            z = 0
-
-        return np.array([x, y, z])
-
-    def apply_vel_acc(self, rvec, tvec, tran_vel, tran_acc, rot_vel, rot_acc):
+    def apply_vel_acc(
+        self, 
+        transformation, 
+        tran_vel, 
+        tran_acc, 
+        rot_vel, 
+        rot_acc
+    ) -> np.ndarray:
         """Applies the pose velocity and acceleration to the last pose.
 
+        Equation used: (Last pose + pose velocity + 0.05*pose acceleration)
+
         Args:
-        rvec:
-        tvec:
+        transformation:
+            Last frame's object transformation (rvec, tvec)
         tran_vel:
+            Relative translation change between frames.
         tran_acc:
+            Change between translational velocities.
         rot_vel:
+            Relative rotation between frames.
         rot_acc:
+            Change between rotational velocities.
 
         Returns:
         The predicted pose (rotation and translation)
         """
-        # Equation used: (Last pose + pose velocity + 0.05*pose acceleration)
 
         # Obtain half rotational acceleration
-        rot_acc_angle = DetectAndGetPose.rotationMatrixToEulerAngles(rot_acc) / 2
-        rot_acc = DetectAndGetPose.eulerAnglesToRotationMatrix(rot_acc_angle)
+        rot_acc_angle = self.rotation_matrix_to_euler_angles(rot_acc) / 2
+        rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
 
         # rvec needs to be rot matrix
-        rmat = cv2.Rodrigues(rvec)[0]
+        rmat = cv2.Rodrigues(transformation[0])[0]
         self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
 
         # Obtain the extrinsic matrix containing rvec and tvec
-        ext_pose = self.get_extrinsic_matrix(rmat, tvec)
+        ext_pose = self.get_extrinsic_matrix(rmat, transformation[1])
         # Obtain the extrinsic matrix containing the pose velocities
         ext_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
         # Obtain the extrinsic matrix containing the pose accelerations
@@ -668,7 +345,8 @@ class DetectAndGetPose:
         rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
         rvec_pose = cv2.Rodrigues(rmat_pose)[0]
 
-        self.logger.info("\n POSE_GUESS: \n{}\n{}".format(rvec_pose, tvec_pose))
+        self.logger.info(
+            "\n POSE_GUESS: \n{}\n{}".format(rvec_pose, tvec_pose))
 
         return (rvec_pose, tvec_pose)
 
@@ -822,7 +500,7 @@ class DetectAndGetPose:
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
             if self.extrinsic_guess[0] is None:
-                success, pose_rvecs, pose_tvecs, inliers = cv2.solvePnPRansac(
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
                     objPointsArr,
                     imgPointsArr,
                     self.mtx,
@@ -830,7 +508,7 @@ class DetectAndGetPose:
                     flags=cv2.SOLVEPNP_ITERATIVE
                 )
             else:
-                success, pose_rvecs, pose_tvecs, inliers = cv2.solvePnPRansac(
+                success, pose_rvecs, pose_tvecs = cv2.solvePnP(
                     objPointsArr,
                     imgPointsArr,
                     self.mtx,
@@ -842,13 +520,18 @@ class DetectAndGetPose:
                 )
 
             transformation = (pose_rvecs, pose_tvecs)
+            # TEST
+            self._rmats.append(cv2.Rodrigues(transformation[0])[0])
+            self._tvecs.append(transformation[1])
+            # TEST
             self.logger.info("Pose Obtained {}:".format(transformation))
-
+            
             # If pose was found successfully
             if success:
-                mean_error = self.compute_reprojection_error_1(objPointsArr, imgPointsArr, pose_rvecs, pose_tvecs)
+                mean_error = self.get_reprojection_error(objPointsArr, imgPointsArr, transformation)
                 self.logger.info("Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".format(mean_error, pose_rvecs, pose_tvecs))
                 if mean_error < 2:
+                    self.means.append(mean_error)
                     self.logger.info("Projecting 3D points onto the image plane.")
                     # Project the 3D points onto the image plane
                     self._project_draw_points(transformation)
@@ -859,10 +542,10 @@ class DetectAndGetPose:
                         # Used as an extrinisic guess
                         self.extrinsic_guess = transformation
                     else:
-                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation[0], unchanged_prev_transform[0], transformation[1], unchanged_prev_transform[1])
+                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(transformation, unchanged_prev_transform)
                         if good:
                             self.logger.info("Obtained pose velocity and acceleration!")
-                            pred_transform = self.apply_vel_acc(unchanged_prev_transform[0], unchanged_prev_transform[1], tran_vel, tran_acc, rot_vel, rot_acc)
+                            pred_transform = self.apply_vel_acc(unchanged_prev_transform, tran_vel, tran_acc, rot_vel, rot_acc)
                             self.logger.info("Predicted Transform {}:".format(pred_transform))
 
                             # Assign the previous pose to predicted pose
@@ -872,9 +555,6 @@ class DetectAndGetPose:
                 else:
                     # Clear iteration if SolvePNP is 'bad'
                     self.extrinsic_guess = (None, None)
-            else:
-                # Clear iteration if SolvePNP is 'bad'
-                self.extrinsic_guess = (None, None)
         else:
             self.extrinsic_guess = (None, None)
 
@@ -909,29 +589,22 @@ class DetectAndGetPose:
         # Obtain AprilGroup Detected and their respective
         # tag ids, image and object points
         imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
-
-        if useflow and self.opt_flow._did_ape_fail(tag_ids) and self.opt_flow.ids_buf:
+        
+        if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
             print("Use flow and ape failed")
-            imgPointsArr, objPointsArr, tag_ids, out = self.opt_flow.find_more_corners(gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+            imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(gray, imgPointsArr, objPointsArr, tag_ids, out=out)
 
         if tag_ids:
             # Only update the queues with respective image, object points
             # and tag ids when tag ids are obtained, this allows flow to be tracked
             # for frames where no tag ids were detected.
-            self.opt_flow._update_flow_buffers(gray, imgPointsArr, objPointsArr, tag_ids)
+            self._update_flow_buffers(gray, imgPointsArr, objPointsArr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
         self._estimate_pose(imgPointsArr, objPointsArr)
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """Undistorts Frame (other processing, if needed, can go here)
-
-        Args:
-        frame:
-            Each frame from the camera.
-
-        Returns:
-        Processed Frame.
         """
 
         # Undistorts the frame
@@ -962,8 +635,21 @@ class DetectAndGetPose:
         window = 'Camera'
         cv2.namedWindow(window)
 
-        # Open the first camera to get the video stream and the first frame
-        cap = cv2.VideoCapture(0)
+        # TESTING
+        # PEN_TIP = "pen_tip_calib.webm"
+        # MEAN_ERROR = "mean_error.webm"
+        # filepath = Path(self.DIRPATH) / PEN_TIP
+        # print("filepath", filepath)
+        # cap = cv2.VideoCapture(str(filepath))
+
+        # TESTING
+
+
+        # # Open the first camera to get the video stream and the first frame
+        # cap = cv2.VideoCaptuWWre(0)
+        cap = cv2.VideoCapture("/dev/video2")
+        cap.set(3, 1280)
+        cap.set(4, 720)
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
         time.sleep(2.0)
         success, frame = cap.read()
@@ -1021,3 +707,8 @@ class DetectAndGetPose:
             if cv2.waitKey(1) == 27:
                 cv2.destroyAllWindows()
                 break
+        
+         # TESTING
+        cap.release()
+        # np.savez("mean_errors", mean_errors=self.means)
+         # TESTING
