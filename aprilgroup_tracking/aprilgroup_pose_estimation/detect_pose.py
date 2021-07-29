@@ -635,18 +635,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         window = 'Camera'
         cv2.namedWindow(window)
 
-        # TESTING
-        # PEN_TIP = "pen_tip_calib.webm"
-        # MEAN_ERROR = "mean_error.webm"
-        # filepath = Path(self.DIRPATH) / PEN_TIP
-        # print("filepath", filepath)
-        # cap = cv2.VideoCapture(str(filepath))
-
-        # TESTING
-
-
-        # # Open the first camera to get the video stream and the first frame
-        # cap = cv2.VideoCaptuWWre(0)
+        # Open the first camera to get the video stream and the first frame
+        # Change based on which webcam is being used
+        # It is normally "0" for the primary webcam
         cap = cv2.VideoCapture("/dev/video2")
         cap.set(3, 1280)
         cap.set(4, 720)
@@ -707,8 +698,3 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             if cv2.waitKey(1) == 27:
                 cv2.destroyAllWindows()
                 break
-        
-         # TESTING
-        cap.release()
-        # np.savez("mean_errors", mean_errors=self.means)
-         # TESTING
