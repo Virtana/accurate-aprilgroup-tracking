@@ -50,8 +50,7 @@ class Draw(object):
             imgpts = np.round(imgpts).astype(int)
             imgpts = [tuple(pt) for pt in imgpts.reshape(-1, 2)]
         except TypeError:
-            self.logger.debug(
-                "An error occured: {}".format(TypeError))
+            raise TypeError
 
         # Draws lines within the edges given
         for i, j in edges:
@@ -81,8 +80,7 @@ class Draw(object):
             ipoints = np.round(imgpts).astype(int)
             ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
         except TypeError:
-            self.logger.debug(
-                "An error occured: {}".format(TypeError))
+            raise TypeError
 
         # Draw points obtained from cv2:projectPoints()
         # overlay onto the dodecahedron object itself.
@@ -90,10 +88,8 @@ class Draw(object):
             for i in ipoints:
                 if i[1] >= 0 and i[1] < 720 and i[0] >= 0 and i[0] < 1280:
                     cv2.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
-        except(RuntimeError, TypeError):
-            self.logger.debug(
-                "An error occured: {} {}".format(
-                    RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         # Obtain the 4 points from the image points
         length = len(imgpts)
@@ -194,8 +190,7 @@ class Draw(object):
             ipoints = np.round(imgpts).astype(int)
             ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
         except TypeError:
-            self.logger.debug(
-                "An error occured: {}".format(TypeError))
+            raise TypeError
 
         # Draw 3-dimensional shape of the image
         a = np.array(ipoints)

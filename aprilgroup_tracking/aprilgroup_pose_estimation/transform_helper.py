@@ -110,10 +110,8 @@ class TransformHelper(object):
                 transformation[1],
                 self.mtx,
                 self.dist)
-        except(RuntimeError, TypeError):
-            self.logger.debug(
-                "An error occured: {} {}".format(
-                    RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         # Reshape to fit numpy functions
         project_points = project_points.reshape(-1, 2)
@@ -175,10 +173,8 @@ class TransformHelper(object):
         # Relative translation between frames
         try:
             tran_vel = (rot_mat.T) @ (t0 - t1)
-        except(RuntimeError, TypeError):
-            self.logger.debug(
-                "An error occured: {} {}".format(
-                    RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         return tran_vel
 
@@ -198,10 +194,8 @@ class TransformHelper(object):
 
         try:
             r0_to_r1 = r1.T @ r0
-        except(RuntimeError, TypeError):
-            self.logger.debug(
-                "An error occured: {} {}".format(
-                    RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         return r0_to_r1
 

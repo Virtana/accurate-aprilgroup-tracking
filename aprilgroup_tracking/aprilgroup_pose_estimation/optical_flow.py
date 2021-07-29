@@ -250,9 +250,7 @@ class OpticalFlow(object):
                         imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
                         ids.append(pid)
                         objpts.append(objpts0)
-            except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+            except(RuntimeError, TypeError) as error:
+                raise error
 
         return imgpts, objpts, ids, out

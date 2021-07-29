@@ -140,10 +140,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                                                         tvecs,
                                                         rvecs]
                                                     )
-            except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+            except(RuntimeError, TypeError) as error:
+                raise error
         # Closing file
         f.close()
 
@@ -188,10 +186,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             # Crop the image
             x, y, w, h = roi
             dst = dst[y:y+h, x:x+w]
-        except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+                raise error
 
         return dst
 
@@ -228,10 +224,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                                                             transformation
                                                             )
                 obj_points.append(marker_corners)
-            except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+            except(RuntimeError, TypeError) as error:
+                raise error
 
         # Form needed to pass the object points into
         # cv2:solvePnP() and cv2:projectPoints()
@@ -310,9 +304,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.rot_velocities[vel_len-2],
                     self.rot_velocities[vel_len-1])
         except(RuntimeError):
-                self.logger.debug(
-                    "An error occured: {}".format(
-                        RuntimeError))
+                raise RuntimeError
 
         return success, tran_vel, rot_vel, tran_acc, rot_acc
 
@@ -366,9 +358,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
             rvec_pose = cv2.Rodrigues(rmat_pose)[0]
         except(RuntimeError):
-            self.logger.debug(
-                "An error occured: {}".format(
-                    RuntimeError))
+            raise RuntimeError
 
         self.logger.info(
             "\n POSE_GUESS: \n{}\n{}".format(rvec_pose, tvec_pose))
@@ -437,7 +427,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     try:
                         markersize = self.extrinsics[detection.tag_id][0]
                     except:
-                        self.logger.debug(
+                        raise ValueError(
                             "An error occured when retrieving the markersize.")
                         continue
 
@@ -460,7 +450,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                             transformation
                         )
                     except:
-                        self.logger.debug(
+                        raise ValueError(
                             "An error occured trying to obtain \
                             the object points.")
                         continue
@@ -497,7 +487,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 self.dist
             )
         except:
-            self.logger.debug("An error occured during projection of points.")
+            raise ValueError("An error occured during projection of points.")
 
         self.logger.info("Drawing the points...")
         # Draw the image points overlay onto the object and the 3D Drawing
@@ -537,10 +527,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 # Nx2 array
                 imgPointsArr = np.array(
                     imgPointsArr, dtype=np.float32).reshape(-1, 2)
-            except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+            except(RuntimeError, TypeError) as error:
+                raise error
 
             # Obtain the pose of the apriltag
             # If the last pose is None, obtain the pose with
@@ -565,10 +553,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                         True,
                         flags=cv2.SOLVEPNP_ITERATIVE
                     )
-            except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError, ))
+            except(RuntimeError, TypeError) as error:
+                raise error
 
             transformation = (pose_rvecs, pose_tvecs)
             # TEST
@@ -619,10 +605,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     else:
                         # Clear iteration if SolvePNP is 'bad'
                         self.extrinsic_guess = (None, None)
-                except(RuntimeError, TypeError):
-                    self.logger.debug(
-                        "An error occured: {} {}".format(
-                            RuntimeError, TypeError))
+                except(RuntimeError, TypeError) as error:
+                    raise error
         else:
             self.extrinsic_guess = (None, None)
 
@@ -660,20 +644,16 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # tag ids, image and object points
         try:
             imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
-        except(RuntimeError, TypeError):
-                self.logger.debug(
-                    "An error occured: {} {}".format(
-                        RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         try:
             if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
                 print("Use flow and ape failed")
                 imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(
                     gray, imgPointsArr, objPointsArr, tag_ids, out=out)
-        except(RuntimeError, TypeError):
-            self.logger.debug(
-                "An error occured: {} {}".format(
-                    RuntimeError, TypeError))
+        except(RuntimeError, TypeError) as error:
+            raise error
 
         if tag_ids:
             # Only update the queues with respective image, object points
