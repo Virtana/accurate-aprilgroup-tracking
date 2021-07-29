@@ -120,7 +120,16 @@ Execute the program
 
 ```bash
 # Assumming you are in the directory: accurate-aprilgroup-tracking
-$ python3 aprilgroup_tracking/main.py
+# The following command line arguements are used on the terminal:
+$ --no-enhanceape # Uses solvePnP() without the predicted pose
+$ --enhanceape # Uses the predicted pose as extrinsice guess
+$ --no-opticalflow # Will not use optical flow to get more image points
+$ --opticalflow # Will use optical flow to get more image points with the default outlier removal method
+$ --outliermethod opencv # Uses the OpenCV outlier removal method for optical flow
+$ --outliermethod velocity_vector # Uses the velocity vector method implemented in the paper
+
+# An example:
+$ python3 aprilgroup_tracking/main.py --enhanceape --opticalflow --outliermethod opencv
 ```
 
 > This will search for the camera intrinsic parameters, if found, it will store them, 
