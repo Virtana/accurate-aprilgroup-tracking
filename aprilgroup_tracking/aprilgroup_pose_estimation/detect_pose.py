@@ -586,7 +586,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                         "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
                         format(mean_error, pose_rvecs, pose_tvecs))
                     if mean_error < 2:
-                        self.means.append(mean_error)
                         self.logger.info(
                             "Projecting 3D points onto the image plane.")
                         # Project the 3D points onto the image plane
