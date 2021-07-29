@@ -53,7 +53,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         options: AprilTag Detectos Options.
         extrinsics: Tag sizes, translation and rotation vectors for
                     predefined AprilGroup.
-        opointsArr: AprilGroup Object Points.
+        all_objpts: AprilGroup Object Points.
     """
 
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
@@ -105,7 +105,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Extract the tag size, rvec and tvec for all apriltags on dodeca
         # and obtain the aprilgroup object points
-        self.opointsArr = self.get_all_points(self.extrinsics)
+        self.all_objpts = self.get_all_points(self.extrinsics)
 
     def get_extrinsics(self) -> Dict:
         """Obtains the tag sizes, rvecs and tvecs for each apriltag
@@ -229,9 +229,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Form needed to pass the object points into
         # cv2:solvePnP() and cv2:projectPoints()
-        opointsArr = np.array(obj_points).reshape(-1, 3)
+        all_objpts = np.array(obj_points).reshape(-1, 3)
 
-        return opointsArr
+        return all_objpts
 
     def _update_buffers(self, rot_vel, tran_vel, buf_size=2) -> None:
         """
@@ -293,16 +293,17 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             self._update_buffers(rot_vel, tran_vel)
 
             # Calculate Acceleration (based on Constant Acceleration)
-            vel_len = len(self.tran_velocities)
-            if vel_len > 1:
+            velocity_buf_len = len(self.tran_velocities)
+            # If there are velocities in the buffer, you can find acceleration
+            if velocity_buf_len > 1:
                 success = True
                 tran_acc = self.get_relative_trans(
-                    self.rot_velocities[vel_len-1],
-                    self.tran_velocities[vel_len-1],
-                    self.tran_velocities[vel_len-2])
+                    self.rot_velocities[velocity_buf_len-1],
+                    self.tran_velocities[velocity_buf_len-1],
+                    self.tran_velocities[velocity_buf_len-2])
                 rot_acc = self.get_relative_rot(
-                    self.rot_velocities[vel_len-2],
-                    self.rot_velocities[vel_len-1])
+                    self.rot_velocities[velocity_buf_len-2],
+                    self.rot_velocities[velocity_buf_len-1])
         except(RuntimeError):
                 raise RuntimeError
 
@@ -346,14 +347,14 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
 
             # Obtain the extrinsic matrix containing rvec and tvec
-            ext_pose = self.get_extrinsic_matrix(rmat, transformation[1])
+            extrinsic_pose = self.get_extrinsic_matrix(rmat, transformation[1])
             # Obtain the extrinsic matrix containing the pose velocities
-            ext_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
+            extrinsic_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
             # Obtain the extrinsic matrix containing the pose accelerations
-            ext_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
+            extrinsic_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
 
             # Apply the pose velocities and accelerations to the last pose
-            pred_pose = ext_acc @ ext_vel @ ext_pose
+            pred_pose = extrinsic_acc @ extrinsic_vel @ extrinsic_pose
             # Obtain the rmat and tvec from the extrinsic predicted pose
             rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
             rvec_pose = cv2.Rodrigues(rmat_pose)[0]
@@ -395,7 +396,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         imgPointsArr = []
         objPointsArr = []
-        tag_ids = []
+        tag_idsArr = []
 
         # If 1 or more apriltags are detected, estimate and draw the pose
         if num_detections > 0:
@@ -457,9 +458,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
                     imgPointsArr.append(imagePoints)
                     objPointsArr.append(objpts)
-                    tag_ids.append(detection.tag_id)
+                    tag_idsArr.append(detection.tag_id)
 
-        return imgPointsArr, objPointsArr, tag_ids
+        return imgPointsArr, objPointsArr, tag_idsArr
 
     def _project_draw_points(
         self,
@@ -480,7 +481,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         try:
             # Project the 3D points onto the image plane
             imgpts, jac = cv2.projectPoints(
-                self.opointsArr,
+                self.all_objpts,
                 transformation[0],
                 transformation[1],
                 self.mtx,
@@ -516,6 +517,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         and track the dodecahedron.
         """
 
+        # Need to save a copy of the previous transform
+        # due to solvePnP() changing the previous before
+        # variable can be used.
         unchanged_prev_transform = deepcopy(self.prev_transform)
 
         if imgPointsArr and objPointsArr:

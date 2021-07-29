@@ -115,45 +115,45 @@ class OpticalFlow(object):
         # Obtain the index for the pid
         for i, j in enumerate(prev_ids):
             if j == pid:
-                p_index = i
+                pid_index = i
 
         # Obtain the points for the respective pid
-        p0 = np.array(prev_imgpts[p_index], dtype=np.float32).reshape(-1, 1, 2)
-        objpts0 = prev_objpts[p_index]
+        imgpts0 = np.array(prev_imgpts[pid_index], dtype=np.float32).reshape(-1, 1, 2)
+        objpts0 = prev_objpts[pid_index]
 
-        return p0, objpts0
+        return imgpts0, objpts0
 
     def _outlier_removal(
         self,
-        method,
+        outlier_method,
         gray,
-        p0
+        imgpts0
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Removes points where the tracking error or
         velocity vector is too large.
         """
 
-        p1, st, err = cv2.calcOpticalFlowPyrLK(
-            self.gray_buf[-1], gray, p0, None, **self.flow_params)
+        imgpts1, st, err = cv2.calcOpticalFlowPyrLK(
+            self.gray_buf[-1], gray, imgpts0, None, **self.flow_params)
 
-        if method == "opencv":
+        if outlier_method == "opencv":
             # Finds the difference between thr previous frame and the tracking
             # from the current frame to the previous frame.
             # If the values obtained is < 1, they are removed.
 
             # Outlier removal using abs difference between frames
-            p0r, st, err = cv2.calcOpticalFlowPyrLK(
-                gray, self.gray_buf[-1], p1, None, **self.flow_params)
+            imgpts0r, st, err = cv2.calcOpticalFlowPyrLK(
+                gray, self.gray_buf[-1], imgpts1, None, **self.flow_params)
 
-            diff = abs(p0-p0r).reshape(-1, 2).max(-1)
+            diff = abs(imgpts0-imgpts0r).reshape(-1, 2).max(-1)
             good = diff < 1
 
             self.logger.info(
                 "Difference: {} \n Good: {} \n".format(diff, good))
-            valid_p1 = np.asarray(p1[good], dtype='float32').reshape(-1, 2)
-            self.logger.info("Valid points: {}".format(valid_p1))
+            valid_points = np.asarray(imgpts1[good], dtype='float32').reshape(-1, 2)
+            self.logger.info("Valid points: {}".format(valid_points))
 
-        elif method == "velocity_vectors":
+        elif outlier_method == "velocity_vectors":
             # Finds the difference between the tracked points and the
             # previous frame. If the values are < 3 standard deviations
             # from the mean, they are rejected. Using these trusted points
@@ -161,30 +161,30 @@ class OpticalFlow(object):
             # removal is used.
 
             # Velocity Vector
-            vel_vec = abs(p1-p0).reshape(-1, 2).max(-1)
+            vel_vec = abs(imgpts1-imgpts0).reshape(-1, 2).max(-1)
             self.logger.info(
                 "3 Std Dev from mean: [{}]".format(
                     vel_vec.mean() + 3 * vel_vec.std()))
 
             valid_first_pass = np.asarray(
-                p1[vel_vec < vel_vec.mean() + 3 * vel_vec.std()],
+                imgpts1[vel_vec < vel_vec.mean() + 3 * vel_vec.std()],
                 dtype='float32').reshape(-1, 2)
             self.logger.info(
                 "Valid first pass: {}".format(valid_first_pass))
 
             # Re-initialise with trusted predictions
-            p1, st, err = cv2.calcOpticalFlowPyrLK(
+            second_imgpts1, st, err = cv2.calcOpticalFlowPyrLK(
                 self.gray_buf[-1], gray,
                 valid_first_pass, None, **self.flow_params)
 
             # Perform same outlier removal
-            vel_vec2 = abs(p1-valid_first_pass).reshape(-1, 2).max(-1)
-            valid_p1 = np.asarray(
-                p1[vel_vec2 < (vel_vec2.mean() + 3 * vel_vec2.std())],
+            vel_vec2 = abs(second_imgpts1-valid_first_pass).reshape(-1, 2).max(-1)
+            valid_points = np.asarray(
+                second_imgpts1[vel_vec2 < (vel_vec2.mean() + 3 * vel_vec2.std())],
                 dtype='float32').reshape(-1, 2)
-            self.logger.info("Valid second pass: {}".format(valid_p1))
+            self.logger.info("Valid second pass: {}".format(valid_points))
 
-        return valid_p1, p1, st
+        return valid_points, imgpts1, st
 
     def _get_more_imgpts(
         self,
@@ -210,7 +210,7 @@ class OpticalFlow(object):
         """
 
         # TODO: Add as argparser?
-        method = "opencv"
+        outlier_method = "opencv"
 
         if ids is None:
             return None, None, None, out
@@ -236,18 +236,18 @@ class OpticalFlow(object):
                     self.logger.info("Tag ids were not found in frame.")
 
                     # Get previous image and object points
-                    p0, objpts0 = self._get_p0(pid, -1)
+                    imgpts0, objpts0 = self._get_p0(pid, -1)
 
                     # Outlier removal using abs difference between frames
-                    valid_p1, p1, st = self._outlier_removal(method, gray, p0)
+                    valid_points, imgpts1, st = self._outlier_removal(outlier_method, gray, imgpts0)
 
                     # If flow was found all 4 of the marker corners
-                    if valid_p1.shape[0] == 4:
+                    if valid_points.shape[0] == 4:
                         if out is not None:
-                            out = self._draw_flow(out, p0, p1, st)
+                            out = self._draw_flow(out, imgpts0, imgpts1, st)
 
                         # Add to the imgpts, objpts, and ids arrays
-                        imgpts.append(np.array(valid_p1[np.newaxis, :, :]))
+                        imgpts.append(np.array(valid_points[np.newaxis, :, :]))
                         ids.append(pid)
                         objpts.append(objpts0)
             except(RuntimeError, TypeError) as error:

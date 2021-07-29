@@ -36,11 +36,11 @@ class TransformHelper(object):
 
         return sample_dict
 
-    def get_initial_pts(self, markersize: float) -> np.ndarray:
+    def get_initial_pts(self, tagsize: float) -> np.ndarray:
         """Obtains the initial 3D points in space of AprilTags.
 
         Args:
-        markersize:
+        tagsize:
             Size of the apriltag.
 
         Returns:
@@ -48,13 +48,13 @@ class TransformHelper(object):
         """
 
         # AprilTag Radius
-        mhalf = markersize / 2.0
+        tag_radius = tagsize / 2.0
 
         # AprilTag Initial 3D points in space
-        ob_pt1 = [-mhalf, -mhalf, 0.0]  # Lower left in marker world
-        ob_pt2 = [-mhalf, mhalf, 0.0]   # Upper left in marker world
-        ob_pt3 = [mhalf,  mhalf, 0.0]   # Upper right in marker world
-        ob_pt4 = [mhalf,  -mhalf, 0.0]  # Lower right in marker world
+        ob_pt1 = [-tag_radius, -tag_radius, 0.0]  # Lower left in marker world
+        ob_pt2 = [-tag_radius, tag_radius, 0.0]   # Upper left in marker world
+        ob_pt3 = [tag_radius,  tag_radius, 0.0]   # Upper right in marker world
+        ob_pt4 = [tag_radius,  -tag_radius, 0.0]  # Lower right in marker world
         ob_pts = ob_pt1 + ob_pt2 + ob_pt3 + ob_pt4
         object_pts = np.array(ob_pts).reshape(4, 3)
 
@@ -80,16 +80,16 @@ class TransformHelper(object):
         """
 
         # Convert rotation vector to rotation matrix (markerworld -> cam-world)
-        mrv = cv2.Rodrigues(transformation[0])[0]
+        rmat = cv2.Rodrigues(transformation[0])[0]
 
         # Apply rotation to 3D points in space
-        app_rot_mat = object_pts @ mrv.T
+        apply_rotation_mat = object_pts @ rmat.T
 
         # Apply Translation to 3D points in space
         tran_vec = transformation[1].reshape(-1, 3)
-        tran_mat = app_rot_mat + tran_vec
+        apply_tran_mat = apply_rotation_mat + tran_vec
 
-        return tran_mat
+        return apply_tran_mat
 
     def get_reprojection_error(
         self,
@@ -149,13 +149,13 @@ class TransformHelper(object):
         """ Extracts the rotation matrix
         and translation vector from an extrinsic matrix.
         """
-        rel_rot_mat = extrinsic_mat[0:3, 0:3]
-        rel_tvec = np.array(
+        rot_mat = extrinsic_mat[0:3, 0:3]
+        tvec = np.array(
             extrinsic_mat[0:3, 3], dtype=np.float32).reshape(3, -1)
 
-        return rel_rot_mat, rel_tvec
+        return rot_mat, tvec
 
-    def get_relative_trans(self, rot_mat, t1, t0):
+    def get_relative_trans(self, rot_mat, tvec1, tvec0):
         """Obtains the translational velocity between two frames.
 
         Args:
@@ -172,13 +172,13 @@ class TransformHelper(object):
 
         # Relative translation between frames
         try:
-            tran_vel = (rot_mat.T) @ (t0 - t1)
+            rel_tran = (rot_mat.T) @ (tvec0 - tvec1)
         except(RuntimeError, TypeError) as error:
             raise error
 
-        return tran_vel
+        return rel_tran
 
-    def get_relative_rot(self, r0, r1):
+    def get_relative_rot(self, rmat0, rmat1):
         """Obtains the rotation matrix between two frames.
 
         Args:
@@ -193,7 +193,7 @@ class TransformHelper(object):
         """
 
         try:
-            r0_to_r1 = r1.T @ r0
+            r0_to_r1 = rmat1.T @ rmat0
         except(RuntimeError, TypeError) as error:
             raise error
 

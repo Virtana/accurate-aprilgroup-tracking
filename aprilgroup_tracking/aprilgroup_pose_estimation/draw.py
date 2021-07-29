@@ -47,14 +47,14 @@ class Draw(object):
 
         # Overlay Pose onto image
         try:
-            imgpts = np.round(imgpts).astype(int)
-            imgpts = [tuple(pt) for pt in imgpts.reshape(-1, 2)]
+            ipoints = np.round(imgpts).astype(int)
+            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
         except TypeError:
             raise TypeError
 
         # Draws lines within the edges given
         for i, j in edges:
-            cv2.line(self.img, imgpts[i], imgpts[j], (0, 255, 0), 1, 16)
+            cv2.line(self.img, ipoints[i], ipoints[j], (0, 255, 0), 1, 16)
 
     def draw_squares_and_3d_pts(self, imgpts: np.ndarray) -> None:
         """Extracts the bounding box (x, y)-image points
