@@ -132,6 +132,9 @@ dmypy.json
 .vscode/
 logs/
 aprilgroup_tracking/calibration/images/
+aprilgroup_tracking/calibration/images_usb/
 aprilgroup_tracking/calibration/CameraParams.npz
 aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json
-
+aprilgroup_tracking/aprilgroup_pose_estimation/pen_tip_calibration/
+aprilgroup_tracking/aprilgroup_pose_estimation/mean_error.webm
+aprilgroup_tracking/aprilgroup_pose_estimation/pen_tip_calib.webm
