@@ -120,7 +120,12 @@ Execute the program
 
 ```bash
 # Assumming you are in the directory: accurate-aprilgroup-tracking
-$ python3 aprilgroup_tracking/main.py
+# The following command line arguements are used on the terminal:
+$ --no-enhanceape # Uses solvePnP() without the predicted pose
+$ --enhanceape # Uses the predicted pose as extrinsice guess
+
+# An example:
+$ python3 aprilgroup_tracking/main.py --enhanceape
 ```
 
 > This will search for the camera intrinsic parameters, if found, it will store them, 

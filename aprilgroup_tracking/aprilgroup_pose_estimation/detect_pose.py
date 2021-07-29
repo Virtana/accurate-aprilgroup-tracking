@@ -7,12 +7,8 @@ examples.
 
     Typical usage example:
 
-    To use flow, set useflow to True.
-    If the user wishes to test APE alone, set useflow to False.
-
-        useflow = True
-        det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
-        det_pose.overlay_camera(useflow)
+        det_pose = DetectAndGetPose(det_pose_logger, mtx, dist, enhanceape)
+        det_pose.overlay_camera()
 """
 
 import json
@@ -58,7 +54,7 @@ class DetectAndGetPose(TransformHelper, Draw):
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
     JSON_FILE = 'april_group.json'
 
-    def __init__(self, logger, mtx, dist):
+    def __init__(self, logger, mtx, dist, enhance_ape):
         """Inits DetectAndGetPose Class with a logger,
         camera matrix and distortion coefficients, the
         two frames to be displayed, AprilTag Detector Options,
@@ -84,6 +80,11 @@ class DetectAndGetPose(TransformHelper, Draw):
         # Used to test pivot calibration
         self._rmats = []
         self._tvecs = []
+
+        # Used to determine if APE should be used with 
+        # no extrinsic guess or with the predicted pose 
+        # as the extrinsic guess to enhance APE
+        self.enhance_ape: bool = enhance_ape
 
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
@@ -166,7 +167,6 @@ class DetectAndGetPose(TransformHelper, Draw):
         try:
             # Height and Width of the camera frame
             h,  w = frame.shape[:2]
-            print("h", h, "w", w)
 
             # Get the camera matrix and distortion values
             newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(
@@ -536,7 +536,7 @@ class DetectAndGetPose(TransformHelper, Draw):
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
             try:
-                if self.extrinsic_guess[0] is None:
+                if self.extrinsic_guess[0] is None or not self.enhance_ape:
                     success, pose_rvecs, pose_tvecs = cv.solvePnP(
                         objPointsArr,
                         imgPointsArr,
@@ -581,7 +581,7 @@ class DetectAndGetPose(TransformHelper, Draw):
 
                         # If this is the second frame,
                         # there would be no velocity or acc calculation
-                        if self.extrinsic_guess[0] is None:
+                        if self.extrinsic_guess[0] is None or not self.enhance_ape:
                             # Assign the previous pose to current pose
                             # to obtain last pose
                             # Used as an extrinisic guess
@@ -662,7 +662,7 @@ class DetectAndGetPose(TransformHelper, Draw):
 
         return frame
 
-    def overlay_camera(self, useflow) -> None:
+    def overlay_camera(self) -> None:
         """
 
         Creates a new camera window, to show both the pose estimation boxes
