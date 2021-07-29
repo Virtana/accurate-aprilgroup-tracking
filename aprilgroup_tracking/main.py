@@ -37,9 +37,9 @@ def main():
     mtx, dist = calibrate.mtx, calibrate.dist
 
     # Detect and Estimate Pose of the Dodecahedron
-    useflow = True
     det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
-    det_pose.overlay_camera(useflow)
+    det_pose.overlay_camera()
+
 
 if __name__ == "__main__":
     main()
