@@ -132,7 +132,7 @@ class OpticalFlow(object):
         """Removes points where the tracking error or
         velocity vector is too large.
         """
-
+        
         imgpts1, st, err = cv.calcOpticalFlowPyrLK(
             self.gray_buf[-1], gray, imgpts0, None, **self.flow_params)
 
@@ -192,6 +192,7 @@ class OpticalFlow(object):
         imgpts,
         objpts,
         ids,
+        outlier_method=None,
         out=None
     ) -> Tuple[List[object], List[object], List[object], np.ndarray]:
         """
@@ -208,9 +209,6 @@ class OpticalFlow(object):
         Returns the current image points, object points
         and ids arrays with the new values added.
         """
-
-        # TODO: Add as argparser?
-        outlier_method = "opencv"
 
         if ids is None:
             return None, None, None, out

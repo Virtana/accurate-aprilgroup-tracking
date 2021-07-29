@@ -59,7 +59,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
     JSON_FILE = 'april_group.json'
 
-    def __init__(self, logger, mtx, dist):
+    def __init__(self, logger, mtx, dist, enhance_ape):
         """Inits DetectAndGetPose Class with a logger,
         camera matrix and distortion coefficients, the
         two frames to be displayed, AprilTag Detector Options,
@@ -87,6 +87,10 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         self._rmats = []
         self._tvecs = []
 
+        # Used to determine if APE should be used with 
+        # no extrinsic guess or with the predicted pose 
+        # as the extrinsic guess to enhance APE
+        self.enhance_ape: bool = enhance_ape
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
                                                 border=1,
@@ -538,7 +542,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
             try:
-                if self.extrinsic_guess[0] is None:
+                if self.extrinsic_guess[0] is None or not self.enhance_ape:
                     success, pose_rvecs, pose_tvecs = cv.solvePnP(
                         objPointsArr,
                         imgPointsArr,
@@ -575,7 +579,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.logger.info(
                         "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
                         format(mean_error, pose_rvecs, pose_tvecs))
-                    if mean_error < 2:
+                    if mean_error < 1:
                         self.logger.info(
                             "Projecting 3D points onto the image plane.")
                         # Project the 3D points onto the image plane
@@ -583,7 +587,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
                         # If this is the second frame,
                         # there would be no velocity or acc calculation
-                        if self.extrinsic_guess[0] is None:
+                        if self.extrinsic_guess[0] is None or not self.enhance_ape:
                             # Assign the previous pose to current pose
                             # to obtain last pose
                             # Used as an extrinisic guess
@@ -615,7 +619,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             self.extrinsic_guess = (None, None)
 
     def _detect_and_get_pose(
-        self, frame: np.ndarray, useflow=False, out=None
+        self, frame: np.ndarray, useflow=False, outlier_method=None, out=None
     ) -> None:
         """Obtains the pose of the dodecahedron.
 
@@ -655,7 +659,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
                 print("Use flow and ape failed")
                 imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(
-                    gray, imgPointsArr, objPointsArr, tag_ids, out=out)
+                    gray, imgPointsArr, objPointsArr, tag_ids,
+                    outlier_method=outlier_method, out=out)
         except(RuntimeError, TypeError) as error:
             raise error
 
@@ -679,7 +684,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         return frame
 
-    def overlay_camera(self, useflow) -> None:
+    def overlay_camera(self, useflow, outlier_method) -> None:
         """
 
         Creates a new camera window, to show both the pose estimation boxes
@@ -701,6 +706,12 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         window = 'Camera'
         cv.namedWindow(window)
 
+        # # TESTING
+        # PEN_TIP = "dodeca_calib_usb.webm"
+        # filepath = Path(self.DIRPATH) / PEN_TIP
+        # cap = cv.VideoCapture(str(filepath))
+        # # TESTING
+
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
@@ -716,7 +727,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             out = frame.copy()
             # Obtains the pose of the object on the
             # frame and overlays the object.
-            self._detect_and_get_pose(frame, useflow=useflow, out=out)
+            self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
 
         while True:
 
@@ -728,7 +739,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     out = frame.copy()
                     # Obtains the pose of the object on the
                     # frame and overlays the object.
-                    self._detect_and_get_pose(frame, useflow=useflow, out=out)
+                    self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
                 else:
                     break
             except:
@@ -768,3 +779,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             if cv.waitKey(1) == 27:
                 cv.destroyAllWindows()
                 break
+
+        # TESTING
+        cap.release()
+        # TESTING
