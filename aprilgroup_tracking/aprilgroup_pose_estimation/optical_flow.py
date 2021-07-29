@@ -1,5 +1,5 @@
 import numpy as np
-import cv2
+import cv2 as cv
 from typing import List, Tuple
 
 
@@ -35,7 +35,7 @@ class OpticalFlow(object):
                 winSize=(21, 21),
                 maxLevel=3,
                 criteria=(
-                    cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
+                    cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03)
                 )
 
     def _did_ape_fail(self, ids) -> bool:
@@ -81,7 +81,7 @@ class OpticalFlow(object):
         p1:
             The set of image points from this frame
         st:
-            The status return value from cv2.calcOpticalFlowPyrLK()
+            The status return value from cv.calcOpticalFlowPyrLK()
         """
 
         # TODO: What happens when the valid p1 and p0 are of different shapes?
@@ -92,7 +92,7 @@ class OpticalFlow(object):
             end = tuple(valid_p1[i, :].astype(np.int))
             color = (255, 0, 255)
             thickness = 10
-            img = cv2.arrowedLine(img, start, end, color, thickness)
+            img = cv.arrowedLine(img, start, end, color, thickness)
         return img
 
     def _get_p0(self, pid, buf_index) -> Tuple[np.ndarray, np.ndarray]:
@@ -133,7 +133,7 @@ class OpticalFlow(object):
         velocity vector is too large.
         """
 
-        imgpts1, st, err = cv2.calcOpticalFlowPyrLK(
+        imgpts1, st, err = cv.calcOpticalFlowPyrLK(
             self.gray_buf[-1], gray, imgpts0, None, **self.flow_params)
 
         if outlier_method == "opencv":
@@ -142,7 +142,7 @@ class OpticalFlow(object):
             # If the values obtained is < 1, they are removed.
 
             # Outlier removal using abs difference between frames
-            imgpts0r, st, err = cv2.calcOpticalFlowPyrLK(
+            imgpts0r, st, err = cv.calcOpticalFlowPyrLK(
                 gray, self.gray_buf[-1], imgpts1, None, **self.flow_params)
 
             diff = abs(imgpts0-imgpts0r).reshape(-1, 2).max(-1)
@@ -157,7 +157,7 @@ class OpticalFlow(object):
             # Finds the difference between the tracked points and the
             # previous frame. If the values are < 3 standard deviations
             # from the mean, they are rejected. Using these trusted points
-            # cv2:calcOpticalFlowPyrLK() is recalled and the same outlier
+            # cv:calcOpticalFlowPyrLK() is recalled and the same outlier
             # removal is used.
 
             # Velocity Vector
@@ -173,7 +173,7 @@ class OpticalFlow(object):
                 "Valid first pass: {}".format(valid_first_pass))
 
             # Re-initialise with trusted predictions
-            second_imgpts1, st, err = cv2.calcOpticalFlowPyrLK(
+            second_imgpts1, st, err = cv.calcOpticalFlowPyrLK(
                 self.gray_buf[-1], gray,
                 valid_first_pass, None, **self.flow_params)
 

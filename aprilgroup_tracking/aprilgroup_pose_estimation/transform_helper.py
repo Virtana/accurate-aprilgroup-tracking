@@ -1,5 +1,5 @@
 import numpy as np
-import cv2
+import cv2 as cv
 from typing import List, Dict, Tuple
 from numpy.testing import assert_array_almost_equal
 # import the math module
@@ -80,7 +80,7 @@ class TransformHelper(object):
         """
 
         # Convert rotation vector to rotation matrix (markerworld -> cam-world)
-        rmat = cv2.Rodrigues(transformation[0])[0]
+        rmat = cv.Rodrigues(transformation[0])[0]
 
         # Apply rotation to 3D points in space
         apply_rotation_mat = object_pts @ rmat.T
@@ -104,7 +104,7 @@ class TransformHelper(object):
         # Obtains the project image points for the object
         # points and transformation given.
         try:
-            project_points, _ = cv2.projectPoints(
+            project_points, _ = cv.projectPoints(
                 obj_points,
                 transformation[0],
                 transformation[1],

@@ -17,7 +17,7 @@ examples.
 
 import json
 import numpy as np
-import cv2
+import cv2 as cv
 import apriltag
 from pathlib import Path
 import datetime
@@ -171,7 +171,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             print("h", h, "w", w)
 
             # Get the camera matrix and distortion values
-            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(
+            newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(
                                                                 self.mtx,
                                                                 self.dist,
                                                                 (w, h),
@@ -180,7 +180,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                                                                 )
 
             # Undistort Frame
-            dst = cv2.undistort(
+            dst = cv.undistort(
                 frame, self.mtx, self.dist, None, newCameraMatrix)
 
             # Crop the image
@@ -228,7 +228,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 raise error
 
         # Form needed to pass the object points into
-        # cv2:solvePnP() and cv2:projectPoints()
+        # cv:solvePnP() and cv:projectPoints()
         all_objpts = np.array(obj_points).reshape(-1, 3)
 
         return all_objpts
@@ -279,8 +279,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         try:
             # Obtain the rotation matrices
-            prev_rmat = cv2.Rodrigues(prev_transform[0])[0]
-            curr_rmat = cv2.Rodrigues(curr_transform[0])[0]
+            prev_rmat = cv.Rodrigues(prev_transform[0])[0]
+            curr_rmat = cv.Rodrigues(curr_transform[0])[0]
 
             # Translational Velocity
             tran_vel = self.get_relative_trans(
@@ -343,7 +343,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
 
             # rvec needs to be rot matrix
-            rmat = cv2.Rodrigues(transformation[0])[0]
+            rmat = cv.Rodrigues(transformation[0])[0]
             self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
 
             # Obtain the extrinsic matrix containing rvec and tvec
@@ -357,7 +357,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             pred_pose = extrinsic_acc @ extrinsic_vel @ extrinsic_pose
             # Obtain the rmat and tvec from the extrinsic predicted pose
             rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
-            rvec_pose = cv2.Rodrigues(rmat_pose)[0]
+            rvec_pose = cv.Rodrigues(rmat_pose)[0]
         except(RuntimeError):
             raise RuntimeError
 
@@ -470,9 +470,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         Args:
         prvecs:
-            Rotation pose vector from cv2:solvePnP().
+            Rotation pose vector from cv:solvePnP().
         ptvecs:
-            Translation pose vector from cv2:solvePnP().
+            Translation pose vector from cv:solvePnP().
 
         Returns:
             Obtains the 3D points projected onto the image plane to be drawn.
@@ -480,7 +480,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         try:
             # Project the 3D points onto the image plane
-            imgpts, jac = cv2.projectPoints(
+            imgpts, jac = cv.projectPoints(
                 self.all_objpts,
                 transformation[0],
                 transformation[1],
@@ -539,15 +539,15 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
             try:
                 if self.extrinsic_guess[0] is None:
-                    success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                    success, pose_rvecs, pose_tvecs = cv.solvePnP(
                         objPointsArr,
                         imgPointsArr,
                         self.mtx,
                         self.dist,
-                        flags=cv2.SOLVEPNP_ITERATIVE
+                        flags=cv.SOLVEPNP_ITERATIVE
                     )
                 else:
-                    success, pose_rvecs, pose_tvecs = cv2.solvePnP(
+                    success, pose_rvecs, pose_tvecs = cv.solvePnP(
                         objPointsArr,
                         imgPointsArr,
                         self.mtx,
@@ -555,14 +555,14 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                         self.extrinsic_guess[0],
                         self.extrinsic_guess[1],
                         True,
-                        flags=cv2.SOLVEPNP_ITERATIVE
+                        flags=cv.SOLVEPNP_ITERATIVE
                     )
             except(RuntimeError, TypeError) as error:
                 raise error
 
             transformation = (pose_rvecs, pose_tvecs)
             # TEST
-            self._rmats.append(cv2.Rodrigues(transformation[0])[0])
+            self._rmats.append(cv.Rodrigues(transformation[0])[0])
             self._tvecs.append(transformation[1])
             # TEST
             self.logger.info("Pose Obtained {}:".format(transformation))
@@ -623,7 +623,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         uses the apriltag library to detect the apriltags,
         overlays on the apriltag, and uses those detections to
         estimate the pose using OpenCV functions
-        cv2:solvePnP() and cv2:projectPoints().
+        cv:solvePnP() and cv:projectPoints().
 
         Args:
         frame:
@@ -642,7 +642,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         self.draw_frame = np.zeros(shape=[h, w, 3], dtype=np.uint8)
 
         # Apply grayscale to the frame to get proper AprilTag Detections
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 
         # Obtain AprilGroup Detected and their respective
         # tag ids, image and object points
@@ -697,17 +697,17 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         other displays the 3D drawing of the object pose.
         """
 
-        # Create a cv2 window to show images
+        # Create a cv window to show images
         window = 'Camera'
-        cv2.namedWindow(window)
+        cv.namedWindow(window)
 
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
-        cap = cv2.VideoCapture("/dev/video2")
+        cap = cv.VideoCapture("/dev/video2")
         cap.set(3, 1280)
         cap.set(4, 720)
-        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
         time.sleep(2.0)
         success, frame = cap.read()
 
@@ -735,36 +735,36 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 continue
 
             # draw the text and timestamp on the frame
-            cv2.putText(
+            cv.putText(
                 frame,
                 "Displaying dodecahedron with aprilgroup".format(),
                 (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
+                cv.FONT_HERSHEY_SIMPLEX,
                 0.5,
                 (255, 255, 255),
                 2
             )
-            cv2.putText(
+            cv.putText(
                 frame,
                 datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"),
                 (10, frame.shape[0] - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
+                cv.FONT_HERSHEY_SIMPLEX,
                 0.35,
                 (255, 255, 255),
                 1
             )
 
             # Display the object itself with points overlaid onto the object
-            cv2.imshow(window, self.img)
+            cv.imshow(window, self.img)
             # Display the black frame window that shows a
             # 3D drawing of the object
-            cv2.imshow('image', self.draw_frame)
+            cv.imshow('image', self.draw_frame)
 
             if useflow:
-                cv2.imshow('Tracker', cv2.resize(
+                cv.imshow('Tracker', cv.resize(
                     out, (out.shape[1]//2, out.shape[0]//2)))
 
             # if ESC clicked, break the loop
-            if cv2.waitKey(1) == 27:
-                cv2.destroyAllWindows()
+            if cv.waitKey(1) == 27:
+                cv.destroyAllWindows()
                 break
