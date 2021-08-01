@@ -116,17 +116,23 @@ Execute the program
 - Store your images under this folder
 - Obtain the Calibrated Dodecahedron and it's information (measured tag sizes, rotation and translation vectors) as a ***.json*** file
 - Store this ***.json*** file under the directory: ***aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json***
+- There are Bash options available to run parts of the program as described below:
+
+| Bash Options | Argument | Description |
+|--------------|----------|-------------|
+| `--no-enhanceape` | `-` | No enhancement on APE would be completed, meaning that `cv:solvePnP()` would be called with no extrinsic guesses. |
+| `--enhanceape` | `-` | APE will be enhance via using the calculated predicted pose as an extrinsic guess for `cv:solvePnP()`. |
+| `--no-opticalflow` | `-` | Optical flow will not be used to obtain the pose of the object. |
+| `--opticalflow` | `‑` | Lucas Kanade pyramidal optical flow algorithm will be used to obtain more image points for pose estimation. |
+| `--outliermethod` | `opencv` | Once optical flow is used, the [OpenCV](https://github.com/opencv/opencv/blob/master/samples/python/lk_track.py) outlier method will be implemented. |
+| `--outliermethod` | `velocity_vector` | The velocity vector outlier method from the [paper](https://research.fb.com/wp-content/uploads/2017/09/uist2017_pen.pdf) will be implemented. |
+| `--calibratepentip` | `-` | If used, the pen tip will be calibrated based on the poses obtained in real-time using both Algebraic One and Two Step methods. |
+
 - Calibrate, Detect and Estimate the pose of the Dodecahedron by running:
 
 ```bash
 # Assumming you are in the directory: accurate-aprilgroup-tracking
 # The following command line arguements are used on the terminal:
-$ --no-enhanceape # Uses solvePnP() without the predicted pose
-$ --enhanceape # Uses the predicted pose as extrinsice guess
-$ --no-opticalflow # Will not use optical flow to get more image points
-$ --opticalflow # Will use optical flow to get more image points with the default outlier removal method
-$ --outliermethod opencv # Uses the OpenCV outlier removal method for optical flow
-$ --outliermethod velocity_vector # Uses the velocity vector method implemented in the paper
 
 # An example:
 $ python3 aprilgroup_tracking/main.py --enhanceape --opticalflow --outliermethod opencv
@@ -140,6 +146,17 @@ $ python3 aprilgroup_tracking/main.py --enhanceape --opticalflow --outliermethod
 > will be displayed on the other window.
 > Any logs created would be stored under the ***logs*** folder.
 
+- Run the pen-tip calibration:
+
+```
+$ python3 aprilgroup_tracking/main.py --enhanceape --no-opticalflow --calibratepentip
+```
+
+> Pen tip calibration works best with tight constraints e.g. 
+> Setting the mean reprojection error to < 1, only obtaining poses
+> if >= 3 tag ids are detected and using no optical flow.
+> Too bright or too dim lighting and motion blur also affects the poses.
+> Thus be very careful when obtaining the poses for calibration.
 
 
 **N.B: More details and patches coming soon...**

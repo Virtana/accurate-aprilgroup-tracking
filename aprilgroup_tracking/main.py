@@ -11,8 +11,7 @@ from calibration.calibrate_pentip import PenTipCalibrator
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
-def main():
-
+def obtain_argparsers():
     # Create the parser
     parser = argparse.ArgumentParser(description="Parser used for easy testing.")
     # Add arguments
@@ -36,9 +35,20 @@ def main():
         default='opencv',
         help='If "opencv", the OpenCV outlier removal will be used, if \
         "velocity_vector, the velocity vector method will be used.')
+    
+    parser.add_argument(
+        '--calibratepentip',
+        action='store_true',
+        help='If used, the pen tip of the Dodecahedron will be calibrated.')
 
     # Parse the arguments
     args = parser.parse_args()
+
+    return args
+
+def main():
+
+    args = obtain_argparsers()
 
     # Create a folder called "logs"
     log_directory = "logs"
@@ -66,14 +76,31 @@ def main():
     mtx, dist = calibrate.mtx, calibrate.dist
 
     # Detect and Estimate Pose of the Dodecahedron
-    det_pose = DetectAndGetPose(det_pose_logger, mtx, dist, args.enhanceape)
+    det_pose = DetectAndGetPose(det_pose_logger, mtx, dist, args.enhanceape, args.calibratepentip)
     if args.opticalflow:
         det_pose.overlay_camera(args.opticalflow, args.outliermethod)
     else:
         det_pose.overlay_camera(args.opticalflow, None)
 
-    # pc = PenTipCalibrator(det_pose._rmats, det_pose._tvecs)
-    # ft, bt = pc._algebraic_two_step()
+    if args.calibratepentip:
+        # Pen-tip Calibration Logs
+        pentip_calib_logger = CustomLogger(
+            log_file=log_directory+"/pen_tip_calibration_logs",
+            name="pen_tip_calibration_logs")
+
+        # Obtain the pen tip [x, y, z] sphere center
+        pc = PenTipCalibrator(pentip_calib_logger, det_pose._rmats, det_pose._tvecs, det_pose)
+        # Using the Algebraic Two Step Method
+        fixed_tip2, base_tip2, err2 = pc._algebraic_two_step()
+        # Using the Algebraic One Step Method
+        fixed_tip, base_tip, err = pc._algebraic_one_step()
+        pc.logger.info(
+            "Algebraic Two Step \n Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
+                fixed_tip2, base_tip2, err2))
+        pc.logger.info(
+            "Algebraic One Step Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
+                fixed_tip, base_tip, err))
+
 
 if __name__ == "__main__":
     main()

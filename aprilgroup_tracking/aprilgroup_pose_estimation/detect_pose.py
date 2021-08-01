@@ -59,7 +59,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
     DIRPATH = 'aprilgroup_tracking/aprilgroup_pose_estimation'
     JSON_FILE = 'april_group.json'
 
-    def __init__(self, logger, mtx, dist, enhance_ape):
+    def __init__(self, logger, mtx, dist, enhance_ape, calib_pentip):
         """Inits DetectAndGetPose Class with a logger,
         camera matrix and distortion coefficients, the
         two frames to be displayed, AprilTag Detector Options,
@@ -91,6 +91,11 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # no extrinsic guess or with the predicted pose 
         # as the extrinsic guess to enhance APE
         self.enhance_ape: bool = enhance_ape
+
+        # Used to determine if pen tip calibration
+        # if performed
+        self.calib_pentip: bool = calib_pentip
+
         # AprilTag detector options
         self.options = apriltag.DetectorOptions(families='tag36h11',
                                                 border=1,
@@ -172,7 +177,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         try:
             # Height and Width of the camera frame
             h,  w = frame.shape[:2]
-            print("h", h, "w", w)
 
             # Get the camera matrix and distortion values
             newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(
@@ -526,7 +530,15 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # variable can be used.
         unchanged_prev_transform = deepcopy(self.prev_transform)
 
-        if imgPointsArr and objPointsArr:
+        # If performing pen tip calibration, add more constraints
+        if self.calib_pentip:
+            img_pts_min = 3
+            mean_error_limit = 1
+        else:
+            img_pts_min = 2
+            mean_error_limit = 2
+
+        if imgPointsArr and objPointsArr and len(imgPointsArr) >= img_pts_min:
 
             try:
                 # Nx3 array
@@ -565,10 +577,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 raise error
 
             transformation = (pose_rvecs, pose_tvecs)
-            # TEST
-            self._rmats.append(cv.Rodrigues(transformation[0])[0])
-            self._tvecs.append(transformation[1])
-            # TEST
             self.logger.info("Pose Obtained {}:".format(transformation))
 
             # If pose was found successfully
@@ -579,7 +587,13 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.logger.info(
                         "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
                         format(mean_error, pose_rvecs, pose_tvecs))
-                    if mean_error < 1:
+                    if mean_error < mean_error_limit:
+                        
+                        # Obtain all transforms if peforming pen tip calibration
+                        if self.calib_pentip:
+                            self._rmats.append(cv.Rodrigues(transformation[0])[0])
+                            self._tvecs.append(transformation[1])
+
                         self.logger.info(
                             "Projecting 3D points onto the image plane.")
                         # Project the 3D points onto the image plane
@@ -613,10 +627,14 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     else:
                         # Clear iteration if SolvePNP is 'bad'
                         self.extrinsic_guess = (None, None)
+
+                    return transformation
+
                 except(RuntimeError, TypeError) as error:
                     raise error
         else:
             self.extrinsic_guess = (None, None)
+        
 
     def _detect_and_get_pose(
         self, frame: np.ndarray, useflow=False, outlier_method=None, out=None
@@ -672,7 +690,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 gray, imgPointsArr, objPointsArr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
-        self._estimate_pose(imgPointsArr, objPointsArr)
+        transformation = self._estimate_pose(imgPointsArr, objPointsArr)
+
+        return transformation
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """Undistorts Frame (other processing, if needed, can go here)
@@ -706,28 +726,25 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         window = 'Camera'
         cv.namedWindow(window)
 
-        # # TESTING
-        # PEN_TIP = "dodeca_calib_usb.webm"
-        # filepath = Path(self.DIRPATH) / PEN_TIP
-        # cap = cv.VideoCapture(str(filepath))
-        # # TESTING
-
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
-        cap = cv.VideoCapture("/dev/video2")
-        cap.set(3, 1280)
-        cap.set(4, 720)
-        cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
-        time.sleep(2.0)
-        success, frame = cap.read()
+        try:
+            cap = cv.VideoCapture("/dev/video4", cv.CAP_V4L2)
+            cap.set(3, 1280)
+            cap.set(4, 720)
+            cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
+            time.sleep(2.0)
+            success, frame = cap.read()
+        except:
+            raise
 
         if success:
             frame = self.process_frame(frame)
             out = frame.copy()
             # Obtains the pose of the object on the
             # frame and overlays the object.
-            self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
+            transformation = self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
 
         while True:
 
@@ -739,7 +756,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     out = frame.copy()
                     # Obtains the pose of the object on the
                     # frame and overlays the object.
-                    self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
+                    transformation = self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
                 else:
                     break
             except:
@@ -779,7 +796,3 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             if cv.waitKey(1) == 27:
                 cv.destroyAllWindows()
                 break
-
-        # TESTING
-        cap.release()
-        # TESTING

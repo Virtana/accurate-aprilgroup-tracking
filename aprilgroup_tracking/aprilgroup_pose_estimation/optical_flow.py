@@ -22,6 +22,22 @@ class OpticalFlow(object):
         ids_buf: Saves the tag ids detected.
         flow_params: Optical flow params used in
                     Pyramidal Lucas Kanade algorithm.
+        
+        flow_params explanation:
+        winSize: The average window size; 
+            A larger value increases the algorithm's robustness 
+            to image noise and can detect faster motion, but will 
+            produce a more blurred motion field.
+
+        maxLevel: Max level of pyramids;
+            Pyramids allow finding optical flow at various 
+            resolutions of the image.
+
+        TERM_CRITERIA_EPS: Epsilon;
+        TERM_CRITERIA_COUNT:  Max number of iterations;
+            More iterations means a more exhaustive search, 
+            and a smaller epsilon finishes earlier. 
+            These are primarily useful in exchanging speed vs accuracy.
     """
 
     def __init__(self, logger):
@@ -35,7 +51,7 @@ class OpticalFlow(object):
                 winSize=(21, 21),
                 maxLevel=3,
                 criteria=(
-                    cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03)
+                    cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 15, 0.05)
                 )
 
     def _did_ape_fail(self, ids) -> bool:
@@ -70,8 +86,7 @@ class OpticalFlow(object):
             self.ids_buf.pop(0)
 
     def _draw_flow(self, img, p0, p1, st) -> np.ndarray:
-        """
-        A helper method for visualizing optical flow.
+        """A helper method for visualizing optical flow.
 
         Args:
         img:
@@ -96,8 +111,7 @@ class OpticalFlow(object):
         return img
 
     def _get_p0(self, pid, buf_index) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Indexes the buffers to retrieve the image and
+        """Indexes the buffers to retrieve the image and
         object points associated with a given tag id.
 
         Args:
@@ -195,8 +209,7 @@ class OpticalFlow(object):
         outlier_method=None,
         out=None
     ) -> Tuple[List[object], List[object], List[object], np.ndarray]:
-        """
-        The grayscale image, image and object points, and tag ids
+        """The grayscale image, image and object points, and tag ids
         found via APE are used in optical flow to find more image points.
         Checking the tag ids, image and object points buffers, if there
         are previous points successfully saved, the the tag ids
