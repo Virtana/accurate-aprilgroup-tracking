@@ -10,8 +10,7 @@ from calibration.calibrate_camera import Calibration
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
-def main():
-
+def obtain_argparsers():
     # Create the parser
     parser = argparse.ArgumentParser(description="Parser used for easy testing.")
     # Add arguments
@@ -25,6 +24,13 @@ def main():
 
     # Parse the arguments
     args = parser.parse_args()
+
+    return args
+
+
+def main():
+
+    args = obtain_argparsers()
 
     # Create a folder called "logs"
     log_directory = "logs"
