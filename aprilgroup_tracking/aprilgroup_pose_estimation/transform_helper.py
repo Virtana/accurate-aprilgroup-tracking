@@ -156,11 +156,11 @@ class TransformHelper(object):
         return rot_mat, tvec
 
     def get_relative_trans(self, rot_mat, tvec1, tvec0):
-        """Obtains the translational velocity between two frames.
+        """Obtains the translational velocity between two frame.
 
         Args:
         prev_rot:
-            Previous frame rotation.
+            Current frame rotation.
         t0:
             First (or previous) Translation Vector.
         t1:
@@ -193,11 +193,11 @@ class TransformHelper(object):
         """
 
         try:
-            r0_to_r1 = rmat1.T @ rmat0
+            r1_to_r0 = rmat1.T @ rmat0
         except(RuntimeError, TypeError) as error:
             raise error
 
-        return r0_to_r1
+        return r1_to_r0
 
     @staticmethod
     def euler_angles_to_rotation_matrix(theta):
