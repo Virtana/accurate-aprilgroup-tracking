@@ -83,10 +83,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         self.rot_velocities: List[object] = []
         self.tran_velocities: List[object] = []
 
-        # Used to test pivot calibration
-        self._rmats = []
-        self._tvecs = []
-
         # Used to determine if APE should be used with 
         # no extrinsic guess or with the predicted pose 
         # as the extrinsic guess to enhance APE
@@ -522,10 +518,14 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Need to save a copy of the previous transform
         # due to solvePnP() changing the previous before
-        # variable can be used.
+        # variable can be used
         unchanged_prev_transform = deepcopy(self.prev_transform)
 
-        if imgPointsArr and objPointsArr:
+        # Only detect poses if >=2 tags or set of image points
+        # are obtained
+        img_pts_min = 2
+
+        if imgPointsArr and objPointsArr and len(imgPointsArr) >= img_pts_min:
 
             try:
                 # Nx3 array
@@ -564,10 +564,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 raise error
 
             transformation = (pose_rvecs, pose_tvecs)
-            # TEST
-            self._rmats.append(cv.Rodrigues(transformation[0])[0])
-            self._tvecs.append(transformation[1])
-            # TEST
+
             self.logger.info("Pose Obtained {}:".format(transformation))
 
             # If pose was found successfully
@@ -578,7 +575,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.logger.info(
                         "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
                         format(mean_error, pose_rvecs, pose_tvecs))
-                    if mean_error < 1:
+                    if mean_error < 2:
                         self.logger.info(
                             "Projecting 3D points onto the image plane.")
                         # Project the 3D points onto the image plane
@@ -708,7 +705,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
-        cap = cv.VideoCapture("/dev/video2")
+        cap = cv.VideoCapture("/dev/video4", cv.CAP_V4L2)
         cap.set(3, 1280)
         cap.set(4, 720)
         cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
