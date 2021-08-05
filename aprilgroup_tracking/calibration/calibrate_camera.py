@@ -16,12 +16,12 @@ Important when taking images:
 
 """
 
-import numpy as np
-import cv2
 import os
 from pathlib import Path
 from logging import Logger
 from typing import List, Tuple
+import numpy as np
+import cv2
 
 
 class Calibration:
@@ -37,8 +37,8 @@ class Calibration:
         dist: Camera Distortion Coefficients.
         rvecs: Rotation Vector.
         tvecs: Translation Vector.
-        chessboardSize: Size (Width and Height) of ChessBoard.
-        frameSize: Pixel width and height of camera frame.
+        chessboard_size: Size (Width and Height) of ChessBoard.
+        frame_size: Pixel width and height of camera frame.
         criteria: Termination Criteria.
         objpoints: 3d point in real world space.
         imgpoints: 2D points in image plane.
@@ -53,8 +53,8 @@ class Calibration:
         self.dist: np.ndarray
         self.rvecs: np.ndarray
         self.tvecs: np.ndarray
-        self.chessboardSize: Tuple[int, int] = (9, 6)  # Width, Height
-        self.frameSize: Tuple[int, int] = (1280, 720)  # Pixel size of Camera
+        self.chessboard_size: Tuple[int, int] = (9, 6)  # Width, Height
+        self.frame_size: Tuple[int, int] = (1280, 720)  # Pixel size of Camera
         self.criteria: Tuple[float, int, float]
         self.objpoints: List[object] = []
         self.imgpoints: List[object] = []
@@ -91,11 +91,11 @@ class Calibration:
 
         # Prepare object points, e.g. (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
         objp: np.ndarray = np.zeros(
-            (self.chessboardSize[0] * self.chessboardSize[1], 3),
+            (self.chessboard_size[0] * self.chessboard_size[1], 3),
             np.float32)
         objp[:, :2] = np.mgrid[
-            0:self.chessboardSize[0],
-            0:self.chessboardSize[1]].T.reshape(-1, 2)
+            0:self.chessboard_size[0],
+            0:self.chessboard_size[1]].T.reshape(-1, 2)
 
         # Arrays to store object points and image points from all the images.
         self.objpoints = []  # 3d point in real world space
@@ -108,7 +108,7 @@ class Calibration:
         """Save Camera Parameters."""
 
         np.savez(self._INTRINSIC_PARAMETERS_FILE,
-                 cameraMatrix=self.cameraMatrix,
+                 mtx=self.mtx,
                  dist=self.dist,
                  rvecs=self.rvecs,
                  tvecs=self.tvecs)
@@ -117,7 +117,7 @@ class Calibration:
         """Loads the Camera Parameters"""
         with np.load(self._INTRINSIC_PARAMETERS_FILE) as file:
             self.mtx, self.dist, self.rvecs, self.tvecs = [file[i] for i in (
-                'cameraMatrix',
+                'mtx',
                 'dist',
                 'rvecs',
                 'tvecs')]
@@ -147,7 +147,7 @@ class Calibration:
                 # Find the chess board corners
                 ret, corners = cv2.findChessboardCorners(
                     gray,
-                    self.chessboardSize,
+                    self.chessboard_size,
                     None)
 
                 # If found, add object points,
@@ -167,7 +167,7 @@ class Calibration:
                     # Draw and display the corners
                     cv2.drawChessboardCorners(
                         img,
-                        self.chessboardSize,
+                        self.chessboard_size,
                         corners2,
                         ret)
                     cv2.imshow('img', img)
@@ -175,15 +175,15 @@ class Calibration:
 
             cv2.destroyAllWindows()
 
-        ret, self.cameraMatrix, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(
+        ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(
             self.objpoints,
             self.imgpoints,
-            self.frameSize,
+            self.frame_size,
             None,
             None)
 
         self.logger.info("Camera Calibrated: {}".format(ret))
-        self.logger.info("\nCamera Matrix:\n {}".format(self.cameraMatrix))
+        self.logger.info("\nCamera Matrix:\n {}".format(self.mtx))
         self.logger.info("\nDistortion Parameters:\n {}".format(self.dist))
         self.logger.info("\nRotation Vectors: \n {}".format(self.rvecs))
         self.logger.info("\nTranslation Vectors: \n {}".format(self.tvecs))
@@ -208,7 +208,7 @@ class Calibration:
                 self.objpoints[i],
                 self.rvecs[i],
                 self.tvecs[i],
-                self.cameraMatrix,
+                self.mtx,
                 self.dist)
             error = cv2.norm(
                 self.imgpoints[i],

@@ -1,12 +1,17 @@
-import numpy as np
-import cv2 as cv
-from typing import List, Dict, Tuple
-from numpy.testing import assert_array_almost_equal
+"""
+Transform calculations and helper functions for
+detecting and estimation poses of the DodecaPen.
+"""
+
 # import the math module
 from math import sqrt, sin, cos, atan2
+from typing import List, Dict, Tuple
+import numpy as np
+import cv2 as cv
+from numpy.testing import assert_array_almost_equal
 
 
-class TransformHelper(object):
+class TransformHelper():
     """Helper functions relating to object points, appending values,
     transformation, extrinsic matrices and pose velocity and acceleration.
 
@@ -21,12 +26,8 @@ class TransformHelper(object):
         self.mtx: np.ndarray = mtx
         self.dist: np.ndarray = dist
 
-    def add_values_in_dict(
-        self,
-        sample_dict: Dict,
-        key: int,
-        list_of_values: List[object]
-    ) -> Dict:
+    @staticmethod
+    def add_values_in_dict(sample_dict: Dict, key: int, list_of_values: List[object]) -> Dict:
         """Appends multiple values to a key in the given dictionary
         """
 
@@ -36,7 +37,8 @@ class TransformHelper(object):
 
         return sample_dict
 
-    def get_initial_pts(self, tagsize: float) -> np.ndarray:
+    @staticmethod
+    def get_initial_pts(tagsize: float) -> np.ndarray:
         """Obtains the initial 3D points in space of AprilTags.
 
         Args:
@@ -60,11 +62,9 @@ class TransformHelper(object):
 
         return object_pts
 
-    def transform_marker_corners(
-        self,
-        object_pts: np.ndarray,
-        transformation: Tuple[np.ndarray, np.ndarray]
-    ) -> np.ndarray:
+    @staticmethod
+    def transform_marker_corners(object_pts: np.ndarray,
+                                 transformation: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
         """Rotates and Translates the apriltag by the rotation
         and translation vectors given.
 
@@ -79,6 +79,10 @@ class TransformHelper(object):
         to be supplied to solvePnP() to obtain the pose of the apriltag.
         """
 
+        if transformation[0].size == 0 or transformation[1].size == 0:
+            raise ValueError('The transform rotation or translation: {} entered is empty'.format(
+                transformation))
+
         # Convert rotation vector to rotation matrix (markerworld -> cam-world)
         rmat = cv.Rodrigues(transformation[0])[0]
 
@@ -91,27 +95,20 @@ class TransformHelper(object):
 
         return apply_tran_mat
 
-    def get_reprojection_error(
-        self,
-        obj_points,
-        img_points,
-        transformation
-    ) -> float:
+    def get_reprojection_error(self, obj_points: np.ndarray, img_points: np.ndarray,
+                               transformation: Tuple[np.ndarray, np.ndarray]) -> float:
         """Calculates the reprojection error betwen
         the object and image points given the object pose.
         """
 
         # Obtains the project image points for the object
         # points and transformation given.
-        try:
-            project_points, _ = cv.projectPoints(
-                obj_points,
-                transformation[0],
-                transformation[1],
-                self.mtx,
-                self.dist)
-        except(RuntimeError, TypeError) as error:
-            raise error
+        project_points, _ = cv.projectPoints(
+            obj_points,
+            transformation[0],
+            transformation[1],
+            self.mtx,
+            self.dist)
 
         # Reshape to fit numpy functions
         project_points = project_points.reshape(-1, 2)
@@ -123,7 +120,7 @@ class TransformHelper(object):
 
         return reprojection_error_avg
 
-    def get_extrinsic_matrix(self, rmat, tvec):
+    def get_extrinsic_matrix(self, rmat: np.ndarray, tvec: np.ndarray) -> np.ndarray:
         """
         Returns the extrinsic matrix containing the rotational matrix
         and translation vector in the form:
@@ -133,11 +130,16 @@ class TransformHelper(object):
         [0     0    0    1].
         """
 
-        extrinsic_mat = np.vstack(
-            (np.hstack(
-                (rmat, tvec)),
-                np.array([0, 0, 0, 1]))
-            )
+        try:
+            extrinsic_mat = np.vstack(
+                (np.hstack(
+                    (rmat, tvec)),
+                    np.array([0, 0, 0, 1]))
+                )
+        except ValueError as no_transform_err:
+            raise ValueError('The rotation matrix: {} or translation vector: {} \
+                entered are not in the right format (3x3 matrix and 3x1 vector) \
+                    or are zero.'.format(rmat, tvec)) from no_transform_err
         self.logger.info(
             "\n Rmat: {} \n Tvec: {}".format(rmat, tvec))
         self.logger.info(
@@ -145,17 +147,24 @@ class TransformHelper(object):
 
         return extrinsic_mat
 
-    def get_rmat_tvec(self, extrinsic_mat):
+    @staticmethod
+    def get_rmat_tvec(extrinsic_mat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """ Extracts the rotation matrix
         and translation vector from an extrinsic matrix.
         """
-        rot_mat = extrinsic_mat[0:3, 0:3]
-        tvec = np.array(
-            extrinsic_mat[0:3, 3], dtype=np.float32).reshape(3, -1)
+
+        try:
+            rot_mat = extrinsic_mat[0:3, 0:3]
+            tvec = np.array(
+                extrinsic_mat[0:3, 3], dtype=np.float32).reshape(3, -1)
+        except ValueError as ext_mat_err:
+            raise ValueError('The extrinsic matrix entered: {} \
+                is not a 4x4 matrix or is zero.'.format(extrinsic_mat)) from ext_mat_err
 
         return rot_mat, tvec
 
-    def get_relative_trans(self, rot_mat, tvec1, tvec0):
+    @staticmethod
+    def get_relative_trans(rot_mat: np.ndarray, tvec1: np.ndarray, tvec0: np.ndarray) -> np.ndarray:
         """Obtains the translational velocity between two frame.
 
         Args:
@@ -173,12 +182,14 @@ class TransformHelper(object):
         # Relative translation between frames
         try:
             rel_tran = (rot_mat.T) @ (tvec0 - tvec1)
-        except(RuntimeError, TypeError) as error:
-            raise error
+        except ValueError as tvec_err:
+            raise ValueError('The vectors entered, tvec0: {} and tvec1: {} \
+                are either not the same size or zero.'.format(tvec0, tvec1)) from tvec_err
 
         return rel_tran
 
-    def get_relative_rot(self, rmat0, rmat1):
+    @staticmethod
+    def get_relative_rot(rmat0: np.ndarray, rmat1: np.ndarray) -> np.ndarray:
         """Obtains the rotation matrix between two frames.
 
         Args:
@@ -194,14 +205,17 @@ class TransformHelper(object):
 
         try:
             r1_to_r0 = rmat1.T @ rmat0
-        except(RuntimeError, TypeError) as error:
-            raise error
+        except ValueError as rmat_err:
+            raise ValueError('The matrices entered, r0: {} and r1: {} \
+                are either not the same size or zero.'.format(rmat0, rmat1)) from rmat_err
 
         return r1_to_r0
 
     @staticmethod
-    def euler_angles_to_rotation_matrix(theta):
+    def euler_angles_to_rotation_matrix(theta) -> np.ndarray:
         """Calculates Rotation Matrix given euler angles."""
+
+        print("theta", type(theta))
 
         r_x = np.array([[1,                 0,                  0],
                         [0,         cos(theta[0]), -sin(theta[0])],
@@ -222,23 +236,24 @@ class TransformHelper(object):
         return rmat
 
     @staticmethod
-    def rotation_matrix_to_euler_angles(rmat):
+    def rotation_matrix_to_euler_angles(rmat: np.ndarray) -> np.ndarray:
         """Calculates rotation matrix to euler angles.
 
         The result is the same as MATLAB except the order
         of the euler angles ( x and z are swapped ).
         """
-        sy = sqrt(rmat[0, 0] * rmat[0, 0] + rmat[1, 0] * rmat[1, 0])
 
-        singular = sy < 1e-6
+        s_y = sqrt(rmat[0, 0] * rmat[0, 0] + rmat[1, 0] * rmat[1, 0])
+
+        singular = s_y < 1e-6
 
         if not singular:
-            x = atan2(rmat[2, 1], rmat[2, 2])
-            y = atan2(-rmat[2, 0], sy)
-            z = atan2(rmat[1, 0], rmat[0, 0])
+            x_val = atan2(rmat[2, 1], rmat[2, 2])
+            y_val = atan2(-rmat[2, 0], s_y)
+            z_val = atan2(rmat[1, 0], rmat[0, 0])
         else:
-            x = atan2(-rmat[1, 2], rmat[1, 1])
-            y = atan2(-rmat[2, 0], sy)
-            z = 0
+            x_val = atan2(-rmat[1, 2], rmat[1, 1])
+            y_val = atan2(-rmat[2, 0], s_y)
+            z_val = 0
 
-        return np.array([x, y, z])
+        return np.array([x_val, y_val, z_val])

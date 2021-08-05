@@ -11,16 +11,22 @@ from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
 def obtain_argparsers():
+    """
+    Creates arguments to be used during function call for
+    easier testing.
+    """
+
     # Create the parser
-    parser = argparse.ArgumentParser(description="Parser used for easy testing.")
+    parser = argparse.ArgumentParser(description="Parser for easy testing.")
+
     # Add arguments
 
     # Arg Parsers to enhance APE by using the predicted pose,
-    # if --no-enhanceape, solvePnP() is used with no extrinsic guess.
-    enhanceape_group = parser.add_mutually_exclusive_group(required=True)
-    enhanceape_group.add_argument('--enhanceape', dest='enhanceape', action='store_true')
-    enhanceape_group.add_argument('--no-enhanceape', dest='enhanceape', action='store_false')
-    enhanceape_group.set_defaults(enhanceape=True)
+    # if --disable-enhanced-ape, solvePnP() is used with no extrinsic guess.
+    parser.add_argument('--disable-enhanced-ape', dest='enhanceape',
+                        action='store_false',
+                        help="Disables extrinsic guess usage to enhance APE",
+                        default=True)
 
     # Parse the arguments
     args = parser.parse_args()
@@ -29,6 +35,10 @@ def obtain_argparsers():
 
 
 def main():
+    """
+    Main function to create all custom loggers, and execute the detection
+    and pose estimation using AprilTags.
+    """
 
     args = obtain_argparsers()
 
@@ -37,8 +47,8 @@ def main():
     try:
         if not Path(log_directory).exists:
             Path.mkdir(log_directory)
-    except IsADirectoryError:
-        raise ValueError("Could not create log directory")
+    except IsADirectoryError as no_log_error:
+        raise ValueError("Could not create log directory") from no_log_error
 
     # Calibration logs
     calibration_logger = CustomLogger(
