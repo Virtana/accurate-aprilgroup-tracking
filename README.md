@@ -118,14 +118,18 @@ Execute the program
 - Store this ***.json*** file under the directory: ***aprilgroup_tracking/aprilgroup_pose_estimation/april_group.json***
 - Calibrate, Detect and Estimate the pose of the Dodecahedron by running:
 
+| Bash Options | Argument | Description |
+|--------------|----------|-------------|
+| `---disable-enhanced-ape` | `-` | No enhancement on APE would be completed, meaning that `cv:solvePnP()` would be called with no extrinsic guesses. The default is set to True. |
+
+- Calibrate, Detect and Estimate the pose of the Dodecahedron by running:
+
 ```bash
 # Assumming you are in the directory: accurate-aprilgroup-tracking
 # The following command line arguements are used on the terminal:
-$ --no-enhanceape # Uses solvePnP() without the predicted pose
-$ --enhanceape # Uses the predicted pose as extrinsice guess
 
 # An example:
-$ python3 aprilgroup_tracking/main.py --enhanceape
+$ python3 aprilgroup_tracking/main.py --disable-enhanced-ape
 ```
 
 > This will search for the camera intrinsic parameters, if found, it will store them, 
