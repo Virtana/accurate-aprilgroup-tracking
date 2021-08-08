@@ -120,10 +120,8 @@ Execute the program
 
 | Bash Options | Argument | Description |
 |--------------|----------|-------------|
-| `--no-enhanceape` | `-` | No enhancement on APE would be completed, meaning that `cv:solvePnP()` would be called with no extrinsic guesses. |
-| `--enhanceape` | `-` | APE will be enhance via using the calculated predicted pose as an extrinsic guess for `cv:solvePnP()`. |
-| `--no-opticalflow` | `-` | Optical flow will not be used to obtain the pose of the object. |
-| `--opticalflow` | `‑` | Lucas Kanade pyramidal optical flow algorithm will be used to obtain more image points for pose estimation. |
+| `---disable-enhanced-ape` | `-` | No enhancement on APE would be completed, meaning that `cv:solvePnP()` would be called with no extrinsic guesses. The default is set to True. |
+| `--disable-opticalflow` | `-` | Optical flow will not be used to obtain the pose of the object. The default is set True where the Lucas Kanade pyramidal optical flow algorithm will be used to obtain more image points for pose estimation. |
 | `--outliermethod` | `opencv` | Once optical flow is used, the [OpenCV](https://github.com/opencv/opencv/blob/master/samples/python/lk_track.py) outlier method will be implemented. |
 | `--outliermethod` | `velocity_vector` | The velocity vector outlier method from the [paper](https://research.fb.com/wp-content/uploads/2017/09/uist2017_pen.pdf) will be implemented. |
 | `--calibratepentip` | `-` | If used, the pen tip will be calibrated based on the poses obtained in real-time using both Algebraic One and Two Step methods. |
