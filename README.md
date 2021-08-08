@@ -133,7 +133,7 @@ Execute the program
 # The following command line arguements are used on the terminal:
 
 # An example:
-$ python3 aprilgroup_tracking/main.py --enhanceape --opticalflow --outliermethod opencv
+$ python3 aprilgroup_tracking/main.py --disable-enhanced-ape --outliermethod opencv
 ```
 
 > This will search for the camera intrinsic parameters, if found, it will store them, 
