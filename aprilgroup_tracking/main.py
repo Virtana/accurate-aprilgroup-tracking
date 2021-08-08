@@ -12,30 +12,35 @@ from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
 def obtain_argparsers():
+    """
+    Creates arguments to be used during function call for
+    easier testing.
+    """
+
     # Create the parser
     parser = argparse.ArgumentParser(description="Parser used for easy testing.")
+
     # Add arguments
 
     # Arg Parsers to enhance APE by using the predicted pose,
-    # if --no-enhanceape, solvePnP() is used with no extrinsic guess.
-    enhanceape_group = parser.add_mutually_exclusive_group(required=True)
-    enhanceape_group.add_argument('--enhanceape', dest='enhanceape', action='store_true')
-    enhanceape_group.add_argument('--no-enhanceape', dest='enhanceape', action='store_false')
-    enhanceape_group.set_defaults(enhanceape=True)
+    # if --disable-enhanced-ape, solvePnP() is used with no extrinsic guess.
+    parser.add_argument('--disable-enhanced-ape', dest='enhanceape',
+                        action='store_false',
+                        help="Disables extrinsic guess usage to enhance APE",
+                        default=True)
 
-    # Arg Parsers to determine if to use optical flow.
-    opticalflow_group = parser.add_mutually_exclusive_group(required=True)
-    opticalflow_group.add_argument('--opticalflow', dest='opticalflow', action='store_true')
-    opticalflow_group.add_argument('--no-opticalflow', dest='opticalflow', action='store_false')
-    opticalflow_group.set_defaults(opticalflow=True)
+    parser.add_argument('--disable-opticalflow', dest='opticalflow',
+                    action='store_false',
+                    help="Disables optical flow and only uses APE",
+                    default=True)
 
     parser.add_argument(
-        '--outliermethod', 
+        '--outliermethod',
         type=str,
         default='opencv',
         help='If "opencv", the OpenCV outlier removal will be used, if \
         "velocity_vector, the velocity vector method will be used.')
-    
+
     parser.add_argument(
         '--calibratepentip',
         action='store_true',
@@ -47,6 +52,10 @@ def obtain_argparsers():
     return args
 
 def main():
+    """
+    Main function to create all custom loggers, and execute the detection
+    and pose estimation using AprilTags.
+    """
 
     args = obtain_argparsers()
 
@@ -55,8 +64,8 @@ def main():
     try:
         if not Path(log_directory).exists:
             Path.mkdir(log_directory)
-    except IsADirectoryError:
-        raise ValueError("Could not create log directory")
+    except IsADirectoryError as no_log_error:
+        raise ValueError("Could not create log directory") from no_log_error
 
     # Calibration logs
     calibration_logger = CustomLogger(
@@ -89,15 +98,16 @@ def main():
             name="pen_tip_calibration_logs")
 
         # Obtain the pen tip [x, y, z] sphere center
-        pc = PenTipCalibrator(pentip_calib_logger, det_pose._rmats, det_pose._tvecs, det_pose)
+        pivot_calib = PenTipCalibrator(pentip_calib_logger, det_pose.rmats,
+                                       det_pose.tvecs, det_pose)
         # Using the Algebraic Two Step Method
-        fixed_tip2, base_tip2, err2 = pc._algebraic_two_step()
+        fixed_tip2, base_tip2, err2 = pivot_calib.algebraic_two_step()
         # Using the Algebraic One Step Method
-        fixed_tip, base_tip, err = pc._algebraic_one_step()
-        pc.logger.info(
+        fixed_tip, base_tip, err = pivot_calib.algebraic_one_step()
+        pivot_calib.logger.info(
             "Algebraic Two Step \n Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
                 fixed_tip2, base_tip2, err2))
-        pc.logger.info(
+        pivot_calib.logger.info(
             "Algebraic One Step Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
                 fixed_tip, base_tip, err))
 

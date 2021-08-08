@@ -1,9 +1,13 @@
+"""
+Drawing Module
+"""
+
 import numpy as np
 import cv2 as cv
 import apriltag
 
 
-class Draw(object):
+class Draw():
     """Provides drawing methods for AprilTag
     detections and pose estimation.
     """
@@ -11,17 +15,16 @@ class Draw(object):
     def __init__(self, logger):
         self.logger = logger
 
-    def draw_boxes(self, imgpts: np.ndarray) -> None:
+    @staticmethod
+    def draw_boxes(img: np.ndarray, imgpts: np.ndarray) -> None:
         """Draws the lines and edges on the april tag images
         to show the pose estimations.
 
         Args:
         self.img:
             The image containing dodecahedron with apriltags attached.
-        self.imgpts:
+        imgpts:
             Image points of the AprilGroup returned from cv:ProjectPoints().
-        self.dist:
-            Distortion Coefficients from Calibrated Camera.
 
         Returns:
         3D Boxes that shows the AprilGroup detected and the pose estimated.
@@ -45,26 +48,85 @@ class Draw(object):
             7, 4
         ]).reshape(-1, 2)
 
+        if not np.all(imgpts):
+            raise ValueError('Image points are empty.')
+
         # Overlay Pose onto image
-        try:
-            ipoints = np.round(imgpts).astype(int)
-            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
-        except TypeError:
-            raise TypeError
+        ipoints = np.round(imgpts).astype(int)
+        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
 
         # Draws lines within the edges given
         for i, j in edges:
-            cv.line(self.img, ipoints[i], ipoints[j], (0, 255, 0), 1, 16)
+            cv.line(img, ipoints[i], ipoints[j], (0, 255, 0), 1, 16)
 
-    def draw_squares_and_3d_pts(self, imgpts: np.ndarray) -> None:
+    @staticmethod
+    def draw_2d_pts(draw_frame: np.ndarray, imgpts: np.ndarray) -> None:
         """Extracts the bounding box (x, y)-image points
         returned from cv:projectPoints() for the AprilGroup
         and convert each of the (x, y)-coordinate pairs to integers.
 
         Args:
-        self.img:
+        draw_frame:
+            Second window to display 3D drawing of the Dodecahedron.
+        imgpts:
+            Image points returned from cv:projectPoints
+            (mapping 3D to 2D points).
+
+        Returns:
+        Bounding box to form a 3D Dodecahedron drawing.
+        """
+
+        # Obtain the 4 points from the image points
+        length = len(imgpts)
+        for i in range(0, length, 4):
+            (pt_a, pt_b, pt_c, pt_d) = imgpts[i:i+4].reshape(-1, 2)
+            pt_b = (int(pt_b[0]), int(pt_b[1]))
+            pt_c = (int(pt_c[0]), int(pt_c[1]))
+            pt_d = (int(pt_d[0]), int(pt_d[1]))
+            pt_a = (int(pt_a[0]), int(pt_a[1]))
+
+            # Skip drawing if any points are out-of-frame
+            max_width = draw_frame.shape[1]
+            max_height = draw_frame.shape[0]
+            points = [pt_a, pt_b, pt_c, pt_d]
+            skip = False
+            for point in points:
+                if (point[0] >= max_width or point[0] < 0 or
+                        point[1] >= max_height or point[1] < 0):
+                    skip = True
+                    break
+            if skip:
+                continue
+
+            # Draw the 3D form of the dodecahedron from the image points
+            # obtained on a second frame
+            cv.line(
+                draw_frame,
+                pt_a, pt_b, (255, 255, 255),
+                5, cv.LINE_AA)
+            cv.line(
+                draw_frame,
+                pt_b, pt_c, (255, 255, 255),
+                5, cv.LINE_AA)
+            cv.line(
+                draw_frame,
+                pt_c, pt_d, (255, 255, 255),
+                5, cv.LINE_AA)
+            cv.line(
+                draw_frame,
+                pt_d, pt_a, (255, 255, 255),
+                5, cv.LINE_AA)
+
+    def draw_squares_and_3d_pts(self, img: np.ndarray, draw_frame: np.ndarray,
+                                imgpts: np.ndarray) -> None:
+        """Extracts the bounding box (x, y)-image points
+        returned from cv:projectPoints() for the AprilGroup
+        and convert each of the (x, y)-coordinate pairs to integers.
+
+        Args:
+        img:
             Original frame data.
-        self.draw_frame:
+        draw_frame:
             Second window to display 3D drawing of the Dodecahedron.
         imgpts:
             Image points returned from cv:projectPoints
@@ -75,64 +137,23 @@ class Draw(object):
         and image points overlay on the AprilGroup Detected.
         """
 
+        if not np.all(imgpts):
+            raise ValueError('Image points are empty.')
+
         # Overlay Pose onto image
-        try:
-            ipoints = np.round(imgpts).astype(int)
-            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
-        except TypeError:
-            raise TypeError
+        ipoints = np.round(imgpts).astype(int)
+        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
 
         # Draw points obtained from cv:projectPoints()
         # overlay onto the dodecahedron object itself.
-        try:
-            for i in ipoints:
-                if i[1] >= 0 and i[1] < 720 and i[0] >= 0 and i[0] < 1280:
-                    cv.circle(self.img, (i[0], i[1]), 5, (0, 0, 255), -1)
-        except(RuntimeError, TypeError) as error:
-            raise error
+        for i in ipoints:
+            if i[1] >= 0 and i[1] < 720 and i[0] >= 0 and i[0] < 1280:
+                cv.circle(img, (i[0], i[1]), 5, (0, 0, 255), -1)
 
-        # Obtain the 4 points from the image points
-        length = len(imgpts)
-        for i in range(0, length, 4):
-            (ptA, ptB, ptC, ptD) = imgpts[i:i+4].reshape(-1, 2)
-            ptB = (int(ptB[0]), int(ptB[1]))
-            ptC = (int(ptC[0]), int(ptC[1]))
-            ptD = (int(ptD[0]), int(ptD[1]))
-            ptA = (int(ptA[0]), int(ptA[1]))
+        self.draw_2d_pts(draw_frame, imgpts)
 
-            # Skip drawing if any points are out-of-frame
-            max_width = self.draw_frame.shape[1]
-            max_height = self.draw_frame.shape[0]
-            points = [ptA, ptB, ptC, ptD]
-            skip = False
-            for point in points:
-                if (point[0] >= max_width or point[0] < 0 or
-                    point[1] >= max_height or point[1] < 0):
-                        skip = True
-                        break
-            if skip:
-                continue
-
-            # Draw the 3D form of the dodecahedron from the image points
-            # obtained on a second frame
-            cv.line(
-                self.draw_frame,
-                ptA, ptB, (255, 255, 255),
-                5, cv.LINE_AA)
-            cv.line(
-                self.draw_frame,
-                ptB, ptC, (255, 255, 255),
-                5, cv.LINE_AA)
-            cv.line(
-                self.draw_frame,
-                ptC, ptD, (255, 255, 255),
-                5, cv.LINE_AA)
-            cv.line(
-                self.draw_frame,
-                ptD, ptA, (255, 255, 255),
-                5, cv.LINE_AA)
-
-    def draw_corners(self, detection: apriltag.Detection) -> None:
+    @staticmethod
+    def draw_corners(img: np.ndarray, detection: apriltag.Detection) -> None:
         """Extracts the bounding box (x, y)-coordinates for the AprilTag
         and convert each of the (x, y)-coordinate pairs to integers.
 
@@ -151,28 +172,29 @@ class Draw(object):
         # bounding box, center and tag id
 
         # AprilTag Corners (Image Points)
-        (ptA, ptB, ptC, ptD) = detection.corners
-        ptB = (int(ptB[0]), int(ptB[1]))
-        ptC = (int(ptC[0]), int(ptC[1]))
-        ptD = (int(ptD[0]), int(ptD[1]))
-        ptA = (int(ptA[0]), int(ptA[1]))
+        (pt_a, pt_b, pt_c, pt_d) = detection.corners
+        pt_b = (int(pt_b[0]), int(pt_b[1]))
+        pt_c = (int(pt_c[0]), int(pt_c[1]))
+        pt_d = (int(pt_d[0]), int(pt_d[1]))
+        pt_a = (int(pt_a[0]), int(pt_a[1]))
 
         # Draw the bounding box of the AprilTag detection
-        cv.line(self.img, ptA, ptB, (0, 255, 0), 5)
-        cv.line(self.img, ptB, ptC, (0, 255, 0), 5)
-        cv.line(self.img, ptC, ptD, (0, 255, 0), 5)
-        cv.line(self.img, ptD, ptA, (0, 255, 0), 5)
+        cv.line(img, pt_a, pt_b, (0, 255, 0), 5)
+        cv.line(img, pt_b, pt_c, (0, 255, 0), 5)
+        cv.line(img, pt_c, pt_d, (0, 255, 0), 5)
+        cv.line(img, pt_d, pt_a, (0, 255, 0), 5)
 
         # Draw the center (x, y)-coordinates of the AprilTag
-        (cX, cY) = (int(detection.center[0]), int(detection.center[1]))
-        cv.circle(self.img, (cX, cY), 5, (0, 255, 255), -1)
+        (c_x, c_y) = (int(detection.center[0]), int(detection.center[1]))
+        cv.circle(img, (c_x, c_y), 5, (0, 255, 255), -1)
 
         # Draw the tag family on the image
-        tag_id = "ID: {}".format(detection.tag_id)
-        cv.putText(self.img, tag_id, (ptA[0], ptA[1] - 15),
-                    cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        tag_id = 'ID: {}'.format(detection.tag_id)
+        cv.putText(img, tag_id, (pt_a[0], pt_a[1] - 15),
+                   cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    def draw_contours(self, imgpts: np.ndarray) -> None:
+    @staticmethod
+    def draw_contours(draw_frame: np.ndarray, imgpts: np.ndarray) -> None:
         """Draws the contour shape of the image onto the second openCV window.
 
         Args:
@@ -185,13 +207,13 @@ class Draw(object):
         3-Dimensional shape of the image drawn on the second window.
         """
 
+        if not np.all(imgpts):
+            raise ValueError('Image points are empty.')
+
         # Overlay Pose onto image
-        try:
-            ipoints = np.round(imgpts).astype(int)
-            ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
-        except TypeError:
-            raise TypeError
+        ipoints = np.round(imgpts).astype(int)
+        ipoints = [tuple(pt) for pt in ipoints.reshape(-1, 2)]
 
         # Draw 3-dimensional shape of the image
-        a = np.array(ipoints)
-        cv.drawContours(self.draw_frame, [a], 0, (255, 255, 255), -1)
+        draw_shape = np.array(ipoints)
+        cv.drawContours(draw_frame, [draw_shape], 0, (255, 255, 255), -1)

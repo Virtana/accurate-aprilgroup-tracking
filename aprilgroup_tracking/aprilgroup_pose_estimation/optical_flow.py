@@ -1,9 +1,13 @@
+"""
+Optical Flow Module
+"""
+
+from typing import List, Tuple
 import numpy as np
 import cv2 as cv
-from typing import List, Tuple
 
 
-class OpticalFlow(object):
+class OpticalFlow():
     """Tracks the flow of the dodecaPen when <=1 AprilTags are detected.
 
     This Class checks if APE fails, once it does it tracks the flow
@@ -22,21 +26,21 @@ class OpticalFlow(object):
         ids_buf: Saves the tag ids detected.
         flow_params: Optical flow params used in
                     Pyramidal Lucas Kanade algorithm.
-        
+
         flow_params explanation:
-        winSize: The average window size; 
-            A larger value increases the algorithm's robustness 
-            to image noise and can detect faster motion, but will 
+        winSize: The average window size;
+            A larger value increases the algorithm's robustness
+            to image noise and can detect faster motion, but will
             produce a more blurred motion field.
 
         maxLevel: Max level of pyramids;
-            Pyramids allow finding optical flow at various 
+            Pyramids allow finding optical flow at various
             resolutions of the image.
 
         TERM_CRITERIA_EPS: Epsilon;
         TERM_CRITERIA_COUNT:  Max number of iterations;
-            More iterations means a more exhaustive search, 
-            and a smaller epsilon finishes earlier. 
+            More iterations means a more exhaustive search,
+            and a smaller epsilon finishes earlier.
             These are primarily useful in exchanging speed vs accuracy.
     """
 
@@ -54,7 +58,8 @@ class OpticalFlow(object):
                     cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 15, 0.05)
                 )
 
-    def _did_ape_fail(self, ids) -> bool:
+    @staticmethod
+    def did_ape_fail(ids) -> bool:
         """
         Returns True if aproximate pose estimation fails.
         """
@@ -85,7 +90,8 @@ class OpticalFlow(object):
             self.objpts_buf.pop(0)
             self.ids_buf.pop(0)
 
-    def _draw_flow(self, img, p0, p1, st) -> np.ndarray:
+    @staticmethod
+    def draw_flow(img, point_0, point_1, status) -> np.ndarray:
         """A helper method for visualizing optical flow.
 
         Args:
@@ -100,8 +106,8 @@ class OpticalFlow(object):
         """
 
         # TODO: What happens when the valid p1 and p0 are of different shapes?
-        valid_p1 = p1[st == 1]
-        valid_p0 = p0[st == 1]
+        valid_p1 = point_1[status == 1]
+        valid_p0 = point_0[status == 1]
         for i in range(valid_p0.shape[0]):
             start = tuple(valid_p0[i, :].astype(np.int))
             end = tuple(valid_p1[i, :].astype(np.int))
@@ -137,7 +143,7 @@ class OpticalFlow(object):
 
         return imgpts0, objpts0
 
-    def _outlier_removal(
+    def outlier_removal(
         self,
         outlier_method,
         gray,
@@ -146,8 +152,8 @@ class OpticalFlow(object):
         """Removes points where the tracking error or
         velocity vector is too large.
         """
-        
-        imgpts1, st, err = cv.calcOpticalFlowPyrLK(
+
+        imgpts1, status, err = cv.calcOpticalFlowPyrLK(
             self.gray_buf[-1], gray, imgpts0, None, **self.flow_params)
 
         if outlier_method == "opencv":
@@ -156,7 +162,7 @@ class OpticalFlow(object):
             # If the values obtained is < 1, they are removed.
 
             # Outlier removal using abs difference between frames
-            imgpts0r, st, err = cv.calcOpticalFlowPyrLK(
+            imgpts0r, status, err = cv.calcOpticalFlowPyrLK(
                 gray, self.gray_buf[-1], imgpts1, None, **self.flow_params)
 
             diff = abs(imgpts0-imgpts0r).reshape(-1, 2).max(-1)
@@ -187,7 +193,7 @@ class OpticalFlow(object):
                 "Valid first pass: {}".format(valid_first_pass))
 
             # Re-initialise with trusted predictions
-            second_imgpts1, st, err = cv.calcOpticalFlowPyrLK(
+            second_imgpts1, status, err = cv.calcOpticalFlowPyrLK(
                 self.gray_buf[-1], gray,
                 valid_first_pass, None, **self.flow_params)
 
@@ -198,7 +204,7 @@ class OpticalFlow(object):
                 dtype='float32').reshape(-1, 2)
             self.logger.info("Valid second pass: {}".format(valid_points))
 
-        return valid_points, imgpts1, st
+        return valid_points, imgpts1, status
 
     def _get_more_imgpts(
         self,
@@ -241,27 +247,24 @@ class OpticalFlow(object):
             objpts = []
             ids = np.empty((0, 1))
         for pid in prev_ids:  # Loop for all of the markers found last frame
-            try:
-                # If it was not found this frame, compute flow
-                if pid not in ids:
-                    self.logger.info("Tag ids were not found in frame.")
+            # If it was not found this frame, compute flow
+            if pid not in ids:
+                self.logger.info("Tag ids were not found in frame.")
 
-                    # Get previous image and object points
-                    imgpts0, objpts0 = self._get_p0(pid, -1)
+                # Get previous image and object points
+                imgpts0, objpts0 = self._get_p0(pid, -1)
 
-                    # Outlier removal using abs difference between frames
-                    valid_points, imgpts1, st = self._outlier_removal(outlier_method, gray, imgpts0)
+                # Outlier removal using abs difference between frames
+                valid_points, imgpts1, status = self.outlier_removal(outlier_method, gray, imgpts0)
 
-                    # If flow was found all 4 of the marker corners
-                    if valid_points.shape[0] == 4:
-                        if out is not None:
-                            out = self._draw_flow(out, imgpts0, imgpts1, st)
+                # If flow was found all 4 of the marker corners
+                if valid_points.shape[0] == 4:
+                    if out is not None:
+                        out = self.draw_flow(out, imgpts0, imgpts1, status)
 
-                        # Add to the imgpts, objpts, and ids arrays
-                        imgpts.append(np.array(valid_points[np.newaxis, :, :]))
-                        ids.append(pid)
-                        objpts.append(objpts0)
-            except(RuntimeError, TypeError) as error:
-                raise error
+                    # Add to the imgpts, objpts, and ids arrays
+                    imgpts.append(np.array(valid_points[np.newaxis, :, :]))
+                    ids.append(pid)
+                    objpts.append(objpts0)
 
         return imgpts, objpts, ids, out

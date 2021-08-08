@@ -16,14 +16,14 @@ examples.
 """
 
 import json
-import numpy as np
-import cv2 as cv
-import apriltag
 from pathlib import Path
 import datetime
 import time
 from typing import List, Dict, Tuple
 from copy import deepcopy
+import numpy as np
+import cv2 as cv
+import apriltag
 # Import necessary classes
 from aprilgroup_pose_estimation.transform_helper import TransformHelper
 from aprilgroup_pose_estimation.draw import Draw
@@ -84,11 +84,11 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         self.tran_velocities: List[object] = []
 
         # Used to test pivot calibration
-        self._rmats = []
-        self._tvecs = []
+        self.rmats = []
+        self.tvecs = []
 
-        # Used to determine if APE should be used with 
-        # no extrinsic guess or with the predicted pose 
+        # Used to determine if APE should be used with
+        # no extrinsic guess or with the predicted pose
         # as the extrinsic guess to enhance APE
         self.enhance_ape: bool = enhance_ape
 
@@ -127,32 +127,32 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Opening json file containing the dodecahedron extrinsics
         filepath = Path(self.DIRPATH) / self.JSON_FILE
-        with open(filepath, "r") as f:
-            data = json.load(f)
+        try:
+            with open(filepath, "r") as file:
+                data = json.load(file)
+        except IOError as file_error:
+            raise IOError("The filepath: {} does not exist.".format(filepath)) from file_error
 
         for key, tags in data['tags'].items():
-            try:
-                # Size of the tags
-                tag_sizes = tags['size']
-                # Turning tvec into N x 1 array
-                tvecs = np.array(tags['extrinsics'][:3],
-                                    dtype=np.float32).reshape((3, 1))
-                # Turning rvec into N x 1 array
-                rvecs = np.array(tags['extrinsics'][-3:],
-                                    dtype=np.float32).reshape((3, 1))
-                # Add extrinsics to their specific tag_id
+            # Size of the tags
+            tag_sizes = tags['size']
+            # Turning tvec into N x 1 array
+            tvecs = np.array(tags['extrinsics'][:3],
+                             dtype=np.float32).reshape((3, 1))
+            # Turning rvec into N x 1 array
+            rvecs = np.array(tags['extrinsics'][-3:],
+                             dtype=np.float32).reshape((3, 1))
+            # Add extrinsics to their specific tag_id
 
-                extrinsics = self.add_values_in_dict(
-                                                    extrinsics,
-                                                    int(key),
-                                                    [tag_sizes,
-                                                        tvecs,
-                                                        rvecs]
-                                                    )
-            except(RuntimeError, TypeError) as error:
-                raise error
+            extrinsics = self.add_values_in_dict(
+                                                extrinsics,
+                                                int(key),
+                                                [tag_sizes,
+                                                    tvecs,
+                                                    rvecs]
+                                                )
         # Closing file
-        f.close()
+        file.close()
 
         self.logger.info('Successfully Loaded AprilGroup Extrinsics!')
 
@@ -174,28 +174,25 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         A Numpy Array that contains the undistorted frame.
         """
 
-        try:
-            # Height and Width of the camera frame
-            h,  w = frame.shape[:2]
+        # Height and Width of the camera frame
+        height, width = frame.shape[:2]
 
-            # Get the camera matrix and distortion values
-            newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(
-                                                                self.mtx,
-                                                                self.dist,
-                                                                (w, h),
-                                                                1,
-                                                                (w, h)
-                                                                )
+        # Get the camera matrix and distortion values
+        new_camera_matrix, roi = cv.getOptimalNewCameraMatrix(
+                                                            self.mtx,
+                                                            self.dist,
+                                                            (width, height),
+                                                            1,
+                                                            (width, height)
+                                                            )
 
-            # Undistort Frame
-            dst = cv.undistort(
-                frame, self.mtx, self.dist, None, newCameraMatrix)
+        # Undistort Frame
+        dst = cv.undistort(
+            frame, self.mtx, self.dist, None, new_camera_matrix)
 
-            # Crop the image
-            x, y, w, h = roi
-            dst = dst[y:y+h, x:x+w]
-        except(RuntimeError, TypeError) as error:
-                raise error
+        # Crop the image
+        x_val, y_val, width, height = roi
+        dst = dst[y_val:y_val+height, x_val:x_val+width]
 
         return dst
 
@@ -213,40 +210,45 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         obj_points = []
 
+        if not any(extrinsics):
+            raise ValueError("The extrinsic matrix must be supplied.")
+
         for i in extrinsics:
-            try:
-                # Dict key is tag id, with the tag size,
-                # tvec, rvec, respectively, appended
-                tag_size = extrinsics[i][0]
+            # Dict key is tag id, with the tag size,
+            # tvec, rvec, respectively, appended
+            tag_size = extrinsics[i][0]
 
-                # Tuple with rvec (first in tuple) and
-                # tvec (second in tuple) transformation
-                transformation = (extrinsics[i][2], extrinsics[i][1])
+            # Tuple with rvec (first in tuple) and
+            # tvec (second in tuple) transformation
+            transformation = (extrinsics[i][2], extrinsics[i][1])
 
-                # 3D Initial Marker Points
-                initial_obj_pts = self.get_initial_pts(tag_size)
+            # 3D Initial Marker Points
+            initial_obj_pts = self.get_initial_pts(tag_size)
 
-                # Obtain 3D points in space for AprilGroup
-                marker_corners = self.transform_marker_corners(
-                                                            initial_obj_pts,
-                                                            transformation
-                                                            )
-                obj_points.append(marker_corners)
-            except(RuntimeError, TypeError) as error:
-                raise error
+            # Obtain 3D points in space for AprilGroup
+            marker_corners = self.transform_marker_corners(
+                                                        initial_obj_pts,
+                                                        transformation
+                                                        )
+            obj_points.append(marker_corners)
 
         # Form needed to pass the object points into
         # cv:solvePnP() and cv:projectPoints()
         all_objpts = np.array(obj_points).reshape(-1, 3)
 
+        self.logger.info('Successfully Obtained Aprilgroup Object Points!')
+
         return all_objpts
 
-    def _update_buffers(self, rot_vel, tran_vel, buf_size=2) -> None:
+    def _update_buffers(self, rot_vel: np.ndarray, tran_vel: np.ndarray, buf_size: int=2) -> None:
         """
         Adds rotational and translational velocities
         to their respective queues. Will remove old
         items in the buffers based on buf_size
         """
+
+        if not np.all(rot_vel) or not np.all(tran_vel):
+            raise ValueError("The rotational and translation velocities cannot be empty.")
 
         self.rot_velocities.append(rot_vel)
         self.tran_velocities.append(tran_vel)
@@ -254,11 +256,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             self.rot_velocities.pop(0)
             self.tran_velocities.pop(0)
 
-    def get_pose_vel_acc(
-        self,
-        curr_transform,
-        prev_transform
-    ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_pose_vel_acc(self, curr_transform: Tuple[np.ndarray, np.ndarray],
+                         prev_transform: Tuple[np.ndarray, np.ndarray]) -> Tuple[
+                            bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Obtains the pose velocity and acceleration.
 
         Args:
@@ -285,46 +285,37 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         tran_acc = 0.0
         rot_acc = 0.0
 
-        try:
-            # Obtain the rotation matrices
-            prev_rmat = cv.Rodrigues(prev_transform[0])[0]
-            curr_rmat = cv.Rodrigues(curr_transform[0])[0]
+        # Obtain the rotation matrices
+        prev_rmat = cv.Rodrigues(prev_transform[0])[0]
+        curr_rmat = cv.Rodrigues(curr_transform[0])[0]
 
-            # Translational Velocity
-            tran_vel = self.get_relative_trans(
-                curr_rmat, curr_transform[1], prev_transform[1])
+        # Translational Velocity
+        tran_vel = self.get_relative_trans(
+            curr_rmat, curr_transform[1], prev_transform[1])
 
-            # Rotational Velocity
-            rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
+        # Rotational Velocity
+        rot_vel = self.get_relative_rot(prev_rmat, curr_rmat)
 
-            # Add velocities to their respective queues
-            self._update_buffers(rot_vel, tran_vel)
+        # Add velocities to their respective queues
+        self._update_buffers(rot_vel, tran_vel)
 
-            # Calculate Acceleration (based on Constant Acceleration)
-            velocity_buf_len = len(self.tran_velocities)
-            # If there are velocities in the buffer, you can find acceleration
-            if velocity_buf_len > 1:
-                success = True
-                tran_acc = self.get_relative_trans(
-                    self.rot_velocities[velocity_buf_len-1],
-                    self.tran_velocities[velocity_buf_len-1],
-                    self.tran_velocities[velocity_buf_len-2])
-                rot_acc = self.get_relative_rot(
-                    self.rot_velocities[velocity_buf_len-2],
-                    self.rot_velocities[velocity_buf_len-1])
-        except(RuntimeError):
-                raise RuntimeError
+        # Calculate Acceleration (based on Constant Acceleration)
+        velocity_buf_len = len(self.tran_velocities)
+        # If there are velocities in the buffer, you can find acceleration
+        if velocity_buf_len > 1:
+            success = True
+            tran_acc = self.get_relative_trans(
+                self.rot_velocities[velocity_buf_len-1],
+                self.tran_velocities[velocity_buf_len-1],
+                self.tran_velocities[velocity_buf_len-2])
+            rot_acc = self.get_relative_rot(
+                self.rot_velocities[velocity_buf_len-2],
+                self.rot_velocities[velocity_buf_len-1])
 
         return success, tran_vel, rot_vel, tran_acc, rot_acc
 
-    def apply_vel_acc(
-        self,
-        transformation,
-        tran_vel,
-        tran_acc,
-        rot_vel,
-        rot_acc
-    ) -> np.ndarray:
+    def apply_vel_acc(self, transformation, tran_vel: np.ndarray, tran_acc: np.ndarray,
+                      rot_vel: np.ndarray, rot_acc: np.ndarray) -> np.ndarray:
         """Applies the pose velocity and acceleration to the last pose.
 
         Equation used: (Last pose + pose velocity + 0.05*pose acceleration)
@@ -345,39 +336,34 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         The predicted pose (rotation and translation)
         """
 
-        try:
-            # Obtain half rotational acceleration
-            rot_acc_angle = self.rotation_matrix_to_euler_angles(rot_acc) / 2
-            rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
+        # Obtain half rotational acceleration
+        rot_acc_angle = self.rotation_matrix_to_euler_angles(rot_acc) / 2
+        rot_acc = self.euler_angles_to_rotation_matrix(rot_acc_angle)
 
-            # rvec needs to be rot matrix
-            rmat = cv.Rodrigues(transformation[0])[0]
-            self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
+        # rvec needs to be rot matrix
+        rmat = cv.Rodrigues(transformation[0])[0]
+        self.logger.info(f"{rot_acc} {rot_vel} {rmat}")
 
-            # Obtain the extrinsic matrix containing rvec and tvec
-            extrinsic_pose = self.get_extrinsic_matrix(rmat, transformation[1])
-            # Obtain the extrinsic matrix containing the pose velocities
-            extrinsic_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
-            # Obtain the extrinsic matrix containing the pose accelerations
-            extrinsic_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
+        # Obtain the extrinsic matrix containing rvec and tvec
+        extrinsic_pose = self.get_extrinsic_matrix(rmat, transformation[1])
+        # Obtain the extrinsic matrix containing the pose velocities
+        extrinsic_vel = self.get_extrinsic_matrix(rot_vel, tran_vel)
+        # Obtain the extrinsic matrix containing the pose accelerations
+        extrinsic_acc = self.get_extrinsic_matrix(rot_acc, 0.5*tran_acc)
 
-            # Apply the pose velocities and accelerations to the last pose
-            pred_pose = extrinsic_acc @ extrinsic_vel @ extrinsic_pose
-            # Obtain the rmat and tvec from the extrinsic predicted pose
-            rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
-            rvec_pose = cv.Rodrigues(rmat_pose)[0]
-        except(RuntimeError):
-            raise RuntimeError
+        # Apply the pose velocities and accelerations to the last pose
+        pred_pose = extrinsic_acc @ extrinsic_vel @ extrinsic_pose
+        # Obtain the rmat and tvec from the extrinsic predicted pose
+        rmat_pose, tvec_pose = self.get_rmat_tvec(pred_pose)
+        rvec_pose = cv.Rodrigues(rmat_pose)[0]
 
         self.logger.info(
             "\n POSE_GUESS: \n{}\n{}".format(rvec_pose, tvec_pose))
 
         return (rvec_pose, tvec_pose)
 
-    def _obtain_detections(
-        self,
-        gray: np.ndarray
-    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    def _obtain_detections(self, gray: np.ndarray) -> Tuple[
+            List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """Obtains the tag ids detected, along with
         their image and object points.
 
@@ -402,9 +388,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         num_detections = len(detection_results)
         self.logger.info('Detected {} tags.\n'.format(num_detections))
 
-        imgPointsArr = []
-        objPointsArr = []
-        tag_idsArr = []
+        imgpoints_arr = []
+        objpoints_arr = []
+        tag_ids_arr = []
 
         # If 1 or more apriltags are detected, estimate and draw the pose
         if num_detections > 0:
@@ -425,20 +411,22 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.logger.info("\n" + detection.tostring(indent=2))
 
                     # Image points are the corners of the apriltag
-                    imagePoints = detection.corners.reshape(1, 4, 2)
+                    imagepoints = detection.corners.reshape(1, 4, 2)
 
                     # Draw square on all AprilTag edges
-                    self.draw_corners(detection)
+                    self.draw_corners(self.img, detection)
 
                     # Obtain the extrinsics from the .json file
                     # for the first apriltag detected
                     # Size of the AprilTag markers
                     try:
                         markersize = self.extrinsics[detection.tag_id][0]
-                    except:
+                    except ValueError as markersize_err:
                         raise ValueError(
-                            "An error occured when retrieving the markersize.")
-                        continue
+                            'An error occured when retrieving the markersize. \
+                                Either the tag id: {}, did not correspond to the \
+                                    extrinsics list or the extrinsics list \
+                                        is empty.'.format(detection.tag_id)) from markersize_err
 
                     # Tuple with rvec (Rotation Vector of AprilTag) and
                     # tvec (Translation Vector of AprilTag) transformation
@@ -447,33 +435,24 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                         self.extrinsics[detection.tag_id][1]
                     )
 
-                    try:
-                        # Obtains the initial 3D points in space
-                        # for each detected AprilTag
-                        initial_obj_pts = self.get_initial_pts(markersize)
-                        # Obtain the object points (marker_corners)
-                        # of the apriltag detected via rotating and
-                        # translating the AprilGroup
-                        objpts = self.transform_marker_corners(
-                            initial_obj_pts,
-                            transformation
-                        )
-                    except:
-                        raise ValueError(
-                            "An error occured trying to obtain \
-                            the object points.")
-                        continue
+                    # Obtains the initial 3D points in space
+                    # for each detected AprilTag
+                    initial_obj_pts = self.get_initial_pts(markersize)
+                    # Obtain the object points (marker_corners)
+                    # of the apriltag detected via rotating and
+                    # translating the AprilGroup
+                    objpts = self.transform_marker_corners(
+                        initial_obj_pts,
+                        transformation
+                    )
 
-                    imgPointsArr.append(imagePoints)
-                    objPointsArr.append(objpts)
-                    tag_idsArr.append(detection.tag_id)
+                    imgpoints_arr.append(imagepoints)
+                    objpoints_arr.append(objpts)
+                    tag_ids_arr.append(detection.tag_id)
 
-        return imgPointsArr, objPointsArr, tag_idsArr
+        return imgpoints_arr, objpoints_arr, tag_ids_arr
 
-    def _project_draw_points(
-        self,
-        transformation: Tuple[np.ndarray, np.ndarray]
-    ) -> None:
+    def _project_draw_points(self, transformation: Tuple[np.ndarray, np.ndarray]) -> None:
         """Projects the 3D points onto the image plane and draws those points.
 
         Args:
@@ -486,27 +465,21 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             Obtains the 3D points projected onto the image plane to be drawn.
         """
 
-        try:
-            # Project the 3D points onto the image plane
-            imgpts, jac = cv.projectPoints(
-                self.all_objpts,
-                transformation[0],
-                transformation[1],
-                self.mtx,
-                self.dist
-            )
-        except:
-            raise ValueError("An error occured during projection of points.")
+        # Project the 3D points onto the image plane
+        imgpts, jac = cv.projectPoints(
+            self.all_objpts,
+            transformation[0],
+            transformation[1],
+            self.mtx,
+            self.dist
+        )
 
         self.logger.info("Drawing the points...")
         # Draw the image points overlay onto the object and the 3D Drawing
-        self.draw_squares_and_3d_pts(imgpts)
+        self.draw_squares_and_3d_pts(self.img, self.draw_frame, imgpts)
 
-    def _estimate_pose(
-        self,
-        imgPointsArr: List[np.ndarray],
-        objPointsArr: List[np.ndarray]
-    ) -> None:
+    def _estimate_pose(self, imgpoints_arr: List[np.ndarray],
+                       objpoints_arr: List[np.ndarray]) -> None:
         """Obtains the pose of the dodecahedron.
 
         Args:
@@ -525,6 +498,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         and track the dodecahedron.
         """
 
+        transformation = (None, None)
+
         # Need to save a copy of the previous transform
         # due to solvePnP() changing the previous before
         # variable can be used.
@@ -538,107 +513,96 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             img_pts_min = 2
             mean_error_limit = 2
 
-        if imgPointsArr and objPointsArr and len(imgPointsArr) >= img_pts_min:
+        if imgpoints_arr and objpoints_arr and len(imgpoints_arr) >= img_pts_min:
 
-            try:
-                # Nx3 array
-                objPointsArr = np.array(
-                    objPointsArr, dtype=np.float32).reshape(-1, 3)
-                # Nx2 array
-                imgPointsArr = np.array(
-                    imgPointsArr, dtype=np.float32).reshape(-1, 2)
-            except(RuntimeError, TypeError) as error:
-                raise error
+            # Nx3 array
+            objpoints_arr = np.array(
+                objpoints_arr, dtype=np.float32).reshape(-1, 3)
+            # Nx2 array
+            imgpoints_arr = np.array(
+                imgpoints_arr, dtype=np.float32).reshape(-1, 2)
 
             # Obtain the pose of the apriltag
             # If the last pose is None, obtain the pose with
             # no Extrinsic Guess, else use Extrinsic guess and the last pose
-            try:
-                if self.extrinsic_guess[0] is None or not self.enhance_ape:
-                    success, pose_rvecs, pose_tvecs = cv.solvePnP(
-                        objPointsArr,
-                        imgPointsArr,
-                        self.mtx,
-                        self.dist,
-                        flags=cv.SOLVEPNP_ITERATIVE
-                    )
-                else:
-                    success, pose_rvecs, pose_tvecs = cv.solvePnP(
-                        objPointsArr,
-                        imgPointsArr,
-                        self.mtx,
-                        self.dist,
-                        self.extrinsic_guess[0],
-                        self.extrinsic_guess[1],
-                        True,
-                        flags=cv.SOLVEPNP_ITERATIVE
-                    )
-            except(RuntimeError, TypeError) as error:
-                raise error
+            if self.extrinsic_guess[0] is None or not self.enhance_ape:
+                success, pose_rvecs, pose_tvecs = cv.solvePnP(
+                    objpoints_arr,
+                    imgpoints_arr,
+                    self.mtx,
+                    self.dist,
+                    flags=cv.SOLVEPNP_ITERATIVE
+                )
+            else:
+                success, pose_rvecs, pose_tvecs = cv.solvePnP(
+                    objpoints_arr,
+                    imgpoints_arr,
+                    self.mtx,
+                    self.dist,
+                    self.extrinsic_guess[0],
+                    self.extrinsic_guess[1],
+                    True,
+                    flags=cv.SOLVEPNP_ITERATIVE
+                )
 
             transformation = (pose_rvecs, pose_tvecs)
+
             self.logger.info("Pose Obtained {}:".format(transformation))
 
             # If pose was found successfully
             if success:
-                try:
-                    mean_error = self.get_reprojection_error(
-                        objPointsArr, imgPointsArr, transformation)
+                mean_error = self.get_reprojection_error(
+                    objpoints_arr, imgpoints_arr, transformation)
+                self.logger.info(
+                    "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
+                    format(mean_error, pose_rvecs, pose_tvecs))
+                if mean_error < mean_error_limit:
+
+                    # Obtain all transforms if peforming pen tip calibration
+                    if self.calib_pentip:
+                        self.rmats.append(cv.Rodrigues(transformation[0])[0])
+                        self.tvecs.append(transformation[1])
+
                     self.logger.info(
-                        "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
-                        format(mean_error, pose_rvecs, pose_tvecs))
-                    if mean_error < mean_error_limit:
-                        
-                        # Obtain all transforms if peforming pen tip calibration
-                        if self.calib_pentip:
-                            self._rmats.append(cv.Rodrigues(transformation[0])[0])
-                            self._tvecs.append(transformation[1])
+                        "Projecting 3D points onto the image plane.")
+                    # Project the 3D points onto the image plane
+                    self._project_draw_points(transformation)
 
-                        self.logger.info(
-                            "Projecting 3D points onto the image plane.")
-                        # Project the 3D points onto the image plane
-                        self._project_draw_points(transformation)
-
-                        # If this is the second frame,
-                        # there would be no velocity or acc calculation
-                        if self.extrinsic_guess[0] is None or not self.enhance_ape:
-                            # Assign the previous pose to current pose
-                            # to obtain last pose
-                            # Used as an extrinisic guess
-                            self.extrinsic_guess = transformation
-                        else:
-                            good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(
-                                transformation, unchanged_prev_transform)
-                            if good:
-                                self.logger.info(
-                                    "Obtained pose velocity and acceleration!")
-                                pred_transform = self.apply_vel_acc(
-                                    unchanged_prev_transform, tran_vel,
-                                    tran_acc, rot_vel, rot_acc)
-                                self.logger.info(
-                                    "Predicted Transform {}:".format(
-                                        pred_transform))
-
-                                # Assign the previous pose to predicted pose
-                                self.extrinsic_guess = pred_transform
-                        # Obtain the last pose
-                        # (used in the calculation for predicted pose)
-                        self.prev_transform = transformation
+                    # If this is the second frame,
+                    # there would be no velocity or acc calculation
+                    if self.extrinsic_guess[0] is None or not self.enhance_ape:
+                        # Assign the previous pose to current pose
+                        # to obtain last pose
+                        # Used as an extrinisic guess
+                        self.extrinsic_guess = transformation
                     else:
-                        # Clear iteration if SolvePNP is 'bad'
-                        self.extrinsic_guess = (None, None)
+                        good, tran_vel, rot_vel, tran_acc, rot_acc = self.get_pose_vel_acc(
+                            transformation, unchanged_prev_transform)
+                        if good:
+                            self.logger.info(
+                                "Obtained pose velocity and acceleration!")
+                            pred_transform = self.apply_vel_acc(
+                                unchanged_prev_transform, tran_vel,
+                                tran_acc, rot_vel, rot_acc)
+                            self.logger.info(
+                                "Predicted Transform {}:".format(
+                                    pred_transform))
 
-                    return transformation
-
-                except(RuntimeError, TypeError) as error:
-                    raise error
+                            # Assign the previous pose to predicted pose
+                            self.extrinsic_guess = pred_transform
+                    # Obtain the last pose
+                    # (used in the calculation for predicted pose)
+                    self.prev_transform = transformation
+                else:
+                    # Clear iteration if SolvePNP is 'bad'
+                    self.extrinsic_guess = (None, None)
         else:
             self.extrinsic_guess = (None, None)
-        
 
-    def _detect_and_get_pose(
-        self, frame: np.ndarray, useflow=False, outlier_method=None, out=None
-    ) -> None:
+        return transformation
+
+    def _detect_and_get_pose(self, frame: np.ndarray, useflow=False,
+                             outlier_method=None, out=None) -> None:
         """Obtains the pose of the dodecahedron.
 
         Obtains each frame from the camera,
@@ -660,37 +624,31 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         self.img = frame
 
         # Form a black frame to display the 3D drawing of the dodecahedron
-        h,  w = self.img.shape[:2]
-        self.draw_frame = np.zeros(shape=[h, w, 3], dtype=np.uint8)
+        height, width = self.img.shape[:2]
+        self.draw_frame = np.zeros(shape=[height, width, 3], dtype=np.uint8)
 
         # Apply grayscale to the frame to get proper AprilTag Detections
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 
         # Obtain AprilGroup Detected and their respective
         # tag ids, image and object points
-        try:
-            imgPointsArr, objPointsArr, tag_ids = self._obtain_detections(gray)
-        except(RuntimeError, TypeError) as error:
-            raise error
+        imgpoints_arr, objpoints_arr, tag_ids = self._obtain_detections(gray)
 
-        try:
-            if useflow and self._did_ape_fail(tag_ids) and self.ids_buf:
-                print("Use flow and ape failed")
-                imgPointsArr, objPointsArr, tag_ids, out = self._get_more_imgpts(
-                    gray, imgPointsArr, objPointsArr, tag_ids,
-                    outlier_method=outlier_method, out=out)
-        except(RuntimeError, TypeError) as error:
-            raise error
+        if useflow and self.did_ape_fail(tag_ids) and self.ids_buf:
+            print("Use flow and ape failed")
+            imgpoints_arr, objpoints_arr, tag_ids, out = self._get_more_imgpts(
+                gray, imgpoints_arr, objpoints_arr, tag_ids,
+                outlier_method=outlier_method, out=out)
 
         if tag_ids:
             # Only update the queues with respective image, object points
             # and tag ids when tag ids are obtained, this allows flow
             # to be tracked for frames where no tag ids were detected.
             self._update_flow_buffers(
-                gray, imgPointsArr, objPointsArr, tag_ids)
+                gray, imgpoints_arr, objpoints_arr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
-        transformation = self._estimate_pose(imgPointsArr, objPointsArr)
+        transformation = self._estimate_pose(imgpoints_arr, objpoints_arr)
 
         return transformation
 
@@ -729,38 +687,48 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
+        cap = cv.VideoCapture("/dev/video2", cv.CAP_V4L2)
+
+        if not cap.isOpened():
+            raise OSError("Error opening webcam, please check that the webcam \
+                is connected and the correct one is referenced.")
+
+        cap.set(3, 1280)
+        cap.set(4, 720)
+        cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
+        time.sleep(2.0)
+
         try:
-            cap = cv.VideoCapture("/dev/video4", cv.CAP_V4L2)
-            cap.set(3, 1280)
-            cap.set(4, 720)
-            cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
-            time.sleep(2.0)
             success, frame = cap.read()
-        except:
-            raise
+        except OSError as frame_err:
+            raise OSError("Error reading the frame, \
+                please check that the webcam is connected.") from frame_err
 
         if success:
             frame = self.process_frame(frame)
             out = frame.copy()
             # Obtains the pose of the object on the
             # frame and overlays the object.
-            transformation = self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
+            transformation = self._detect_and_get_pose(frame, useflow=useflow,
+                                                       outlier_method=outlier_method, out=out)
 
         while True:
 
             try:
                 success, frame = cap.read()
+            except OSError as frame_err:
+                raise OSError("Error reading the frame, \
+                    please check that the webcam is connected.") from frame_err
 
-                if success:
-                    frame = self.process_frame(frame)
-                    out = frame.copy()
-                    # Obtains the pose of the object on the
-                    # frame and overlays the object.
-                    transformation = self._detect_and_get_pose(frame, useflow=useflow, outlier_method=outlier_method, out=out)
-                else:
-                    break
-            except:
-                continue
+            if success:
+                frame = self.process_frame(frame)
+                out = frame.copy()
+                # Obtains the pose of the object on the
+                # frame and overlays the object.
+                transformation = self._detect_and_get_pose(frame, useflow=useflow,
+                                                           outlier_method=outlier_method, out=out)
+            else:
+                break
 
             # draw the text and timestamp on the frame
             cv.putText(

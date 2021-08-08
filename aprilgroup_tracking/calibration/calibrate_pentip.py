@@ -1,6 +1,10 @@
+"""
+Module to calibrate pen-tip,
+"""
+
+from typing import Tuple
 import numpy as np
 import cv2 as cv
-from typing import Tuple
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
@@ -45,7 +49,7 @@ class PenTipCalibrator(DetectAndGetPose):
         self._rmats = rmats
         self._tvecs = tvecs
 
-    def _algebraic_two_step(self) -> Tuple[np.ndarray, np.ndarray]:
+    def algebraic_two_step(self) -> Tuple[np.ndarray, np.ndarray]:
         """Obtains the fixed and base tip points from the DodecaPen
         using the algebraic two step algorithm as found here:
         https://www.yanivresearch.info/writtenMaterial/pivotCalib-SPIE2015.pdf
@@ -79,7 +83,7 @@ class PenTipCalibrator(DetectAndGetPose):
 
         return fixed_tip, sphere_center, residual_rms
 
-    def _algebraic_one_step(self) -> Tuple[np.ndarray, np.ndarray]:
+    def algebraic_one_step(self) -> Tuple[np.ndarray, np.ndarray]:
         """Obtains the fixed and base tip points from the DodecaPen
         using the algebraic one step algorithm as found here:
         https://www.yanivresearch.info/writtenMaterial/pivotCalib-SPIE2015.pdf
@@ -110,7 +114,7 @@ class PenTipCalibrator(DetectAndGetPose):
 
         return fixed_tip, sphere_center, residual_rms
 
-    def _test_pentip_calib(self, frames, fixed_tip, check_opt_flow, outliermethod):
+    def test_pentip_calib(self, frames, fixed_tip, check_opt_flow, outliermethod):
         """Tests the fixed point on images using transforms obtained
         from the DetectAndGetPose class. The fixed point is projected
         onto the images using cv:ProjectPoints()."""
