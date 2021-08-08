@@ -11,30 +11,35 @@ from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
 
 
 def obtain_argparsers():
+    """
+    Creates arguments to be used during function call for
+    easier testing.
+    """
+
     # Create the parser
     parser = argparse.ArgumentParser(description="Parser used for easy testing.")
+
     # Add arguments
 
     # Arg Parsers to enhance APE by using the predicted pose,
-    # if --no-enhanceape, solvePnP() is used with no extrinsic guess.
-    enhanceape_group = parser.add_mutually_exclusive_group(required=True)
-    enhanceape_group.add_argument('--enhanceape', dest='enhanceape', action='store_true')
-    enhanceape_group.add_argument('--no-enhanceape', dest='enhanceape', action='store_false')
-    enhanceape_group.set_defaults(enhanceape=True)
+    # if --disable-enhanced-ape, solvePnP() is used with no extrinsic guess.
+    parser.add_argument('--disable-enhanced-ape', dest='enhanceape',
+                        action='store_false',
+                        help="Disables extrinsic guess usage to enhance APE",
+                        default=True)
 
-    # Arg Parsers to determine if to use optical flow.
-    opticalflow_group = parser.add_mutually_exclusive_group(required=True)
-    opticalflow_group.add_argument('--opticalflow', dest='opticalflow', action='store_true')
-    opticalflow_group.add_argument('--no-opticalflow', dest='opticalflow', action='store_false')
-    opticalflow_group.set_defaults(opticalflow=True)
+    parser.add_argument('--disable-opticalflow', dest='opticalflow',
+                    action='store_false',
+                    help="Disables optical flow and only uses APE",
+                    default=True)
 
     parser.add_argument(
-        '--outliermethod', 
+        '--outliermethod',
         type=str,
         default='opencv',
         help='If "opencv", the OpenCV outlier removal will be used, if \
         "velocity_vector, the velocity vector method will be used.')
-    
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -42,6 +47,10 @@ def obtain_argparsers():
 
 
 def main():
+    """
+    Main function to create all custom loggers, and execute the detection
+    and pose estimation using AprilTags.
+    """
 
     args = obtain_argparsers()
 
@@ -50,8 +59,8 @@ def main():
     try:
         if not Path(log_directory).exists:
             Path.mkdir(log_directory)
-    except IsADirectoryError:
-        raise ValueError("Could not create log directory")
+    except IsADirectoryError as no_log_error:
+        raise ValueError("Could not create log directory") from no_log_error
 
     # Calibration logs
     calibration_logger = CustomLogger(
