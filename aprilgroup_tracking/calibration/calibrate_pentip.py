@@ -2,7 +2,9 @@
 Module to calibrate pen-tip,
 """
 
+import time
 from typing import Tuple
+import glob
 import numpy as np
 import cv2 as cv
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
@@ -44,10 +46,13 @@ class PenTipCalibrator(DetectAndGetPose):
         if not type(det_pose) == DetectAndGetPose:
             raise ValueError('Parameter det_pose must be of type DetectAndGetPose.')
         self.det_pose = det_pose
-        if not rmats and not tvecs:
-            raise ValueError("The rotation matrices and translation vectors must be supplied.")
+        # if not rmats and not tvecs:
+        #     raise ValueError("The rotation matrices and translation vectors must be supplied.")
         self._rmats = rmats
         self._tvecs = tvecs
+
+        self.logger.info("length of tvecs: {}".format(len(self._tvecs)))
+        self.logger.info("length of rmats: {}".format(len(self._rmats)))
 
     def algebraic_two_step(self) -> Tuple[np.ndarray, np.ndarray]:
         """Obtains the fixed and base tip points from the DodecaPen
@@ -81,6 +86,10 @@ class PenTipCalibrator(DetectAndGetPose):
         residual_norms = np.linalg.norm(residual_vectors, axis=1)
         residual_rms = np.sqrt(np.mean(residual_norms ** 2))
 
+        self.logger.info(
+            "Algebraic Two Step \n Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
+                fixed_tip, sphere_center, residual_rms))
+
         return fixed_tip, sphere_center, residual_rms
 
     def algebraic_one_step(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -112,21 +121,26 @@ class PenTipCalibrator(DetectAndGetPose):
         residual_norms = np.linalg.norm(residual_vectors, axis=1)
         residual_rms = np.sqrt(np.mean(residual_norms ** 2))
 
+        self.logger.info(
+            "Algebraic One Step \n Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
+                fixed_tip, sphere_center, residual_rms))
+
         return fixed_tip, sphere_center, residual_rms
 
-    def test_pentip_calib(self, frames, fixed_tip, check_opt_flow, outliermethod):
+    def test_pentip_calib_img(self, fixed_tip, check_opt_flow, outliermethod):
         """Tests the fixed point on images using transforms obtained
         from the DetectAndGetPose class. The fixed point is projected
         onto the images using cv:ProjectPoints()."""
+
+        # Path to images for testing the pen tip position
+        frames = glob.glob("aprilgroup_tracking/aprilgroup_pose_estimation/pen_tip_calib_usb/test/*.jpg")
 
         for f in frames:
             frame = cv.imread(f, -1)
             frame = self.det_pose.undistort_frame(frame)
             transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
 
-            if transform is None:
-                continue 
-            if transform is not None:
+            if not transform[0].size == 0 and not transform[1].size == 0:
                 imagePoints, _ = cv.projectPoints(np.float32(fixed_tip), transform[0], transform[1], self.det_pose.mtx, self.det_pose.dist)
                 print("imagepts", imagePoints)
                 x = imagePoints[0,0,0]
@@ -137,3 +151,58 @@ class PenTipCalibrator(DetectAndGetPose):
 
         cv.destroyAllWindows()
         cv.waitKey(1)
+
+    def test_pentip_calib_video(self, fixed_tip, check_opt_flow, outliermethod):
+        """Tests the fixed point on images using transforms obtained
+        from the DetectAndGetPose class. The fixed point is projected
+        onto the images using cv:ProjectPoints()."""
+
+        # Create a cv window to show images
+        window = 'Pen Tip Calibration Test'
+        cv.namedWindow(window)
+
+        # Open the first camera to get the video stream and the first frame
+        # Change based on which webcam is being used
+        # It is normally "0" for the primary webcam
+        cap = cv.VideoCapture("/dev/video2", cv.CAP_V4L2)
+
+        if not cap.isOpened():
+            raise OSError("Error opening webcam, please check that the webcam \
+                is connected and the correct one is referenced.")
+
+        cap.set(3, 1280)
+        cap.set(4, 720)
+        cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
+        time.sleep(2.0)
+
+        while (cap.isOpened()):
+
+            try:
+                success, frame = cap.read()
+            except OSError as frame_err:
+                raise OSError("Error reading the frame, \
+                    please check that the webcam is connected.") from frame_err
+
+            if success:
+                frame = self.det_pose.undistort_frame(frame)
+                # Obtains the pose of the object on the
+                # frame and overlays the object.
+                transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
+
+                if not transform[0].size == 0 and not transform[1].size == 0:
+                    imagePoints, _ = cv.projectPoints(np.float32(fixed_tip), transform[0], transform[1], self.det_pose.mtx, self.det_pose.dist)
+                    print("imagepts", imagePoints)
+                    x = imagePoints[0,0,0]
+                    y = imagePoints[0,0,1]
+                    frame = cv.circle(frame, (int(x), int(y)), 5, (0,0,0), -1)
+
+                # Display the object itself with points overlaid onto the object
+                cv.imshow(window, frame)
+            
+            else:
+                break
+
+            # if ESC clicked, break the loop
+            if cv.waitKey(1) == 27:
+                cv.destroyAllWindows()
+                break

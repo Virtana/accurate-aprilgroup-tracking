@@ -99,17 +99,15 @@ def main():
 
         # Obtain the pen tip [x, y, z] sphere center
         pivot_calib = PenTipCalibrator(pentip_calib_logger, det_pose.rmats,
-                                       det_pose.tvecs, det_pose)
+                                        det_pose.tvecs, det_pose)
         # Using the Algebraic Two Step Method
         fixed_tip2, base_tip2, err2 = pivot_calib.algebraic_two_step()
         # Using the Algebraic One Step Method
         fixed_tip, base_tip, err = pivot_calib.algebraic_one_step()
-        pivot_calib.logger.info(
-            "Algebraic Two Step \n Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
-                fixed_tip2, base_tip2, err2))
-        pivot_calib.logger.info(
-            "Algebraic One Step Fixed tip: {}, \n Base tip: {} \n Error: {}".format(
-                fixed_tip, base_tip, err))
+
+        # Testing the fixed tip position
+        pivot_calib.test_pentip_calib_img(fixed_tip2, args.opticalflow, args.outliermethod)
+        pivot_calib.test_pentip_calib_video(fixed_tip2, args.opticalflow, args.outliermethod)
 
 
 if __name__ == "__main__":

@@ -498,7 +498,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         and track the dodecahedron.
         """
 
-        transformation = (None, None)
+        transformation = (np.array([]), np.array([]))
 
         # Need to save a copy of the previous transform
         # due to solvePnP() changing the previous before
@@ -508,7 +508,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         # If performing pen tip calibration, add more constraints
         if self.calib_pentip:
             img_pts_min = 3
-            mean_error_limit = 1
+            mean_error_limit = 1.5
         else:
             img_pts_min = 2
             mean_error_limit = 2
@@ -545,23 +545,25 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     flags=cv.SOLVEPNP_ITERATIVE
                 )
 
-            transformation = (pose_rvecs, pose_tvecs)
-
-            self.logger.info("Pose Obtained {}:".format(transformation))
-
             # If pose was found successfully
             if success:
                 mean_error = self.get_reprojection_error(
-                    objpoints_arr, imgpoints_arr, transformation)
+                    objpoints_arr, imgpoints_arr, pose_rvecs, pose_tvecs)
                 self.logger.info(
                     "Mean error: {} \n Pose rvec: {} \n Pose tvec: {}".
                     format(mean_error, pose_rvecs, pose_tvecs))
                 if mean_error < mean_error_limit:
 
+                    transformation = (pose_rvecs, pose_tvecs)
+                    self.logger.info("Pose Obtained {}:".format(transformation))
+
                     # Obtain all transforms if peforming pen tip calibration
                     if self.calib_pentip:
-                        self.rmats.append(cv.Rodrigues(transformation[0])[0])
-                        self.tvecs.append(transformation[1])
+                        # Press "s" to save the pose when the best pose is obtained
+                        k = cv.waitKey(0) & 0xFF
+                        if k == ord('s'):
+                            self.rmats.append(cv.Rodrigues(transformation[0])[0])
+                            self.tvecs.append(transformation[1])
 
                     self.logger.info(
                         "Projecting 3D points onto the image plane.")
@@ -698,20 +700,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         cap.set(cv.CAP_PROP_AUTOFOCUS, 0)
         time.sleep(2.0)
 
-        try:
-            success, frame = cap.read()
-        except OSError as frame_err:
-            raise OSError("Error reading the frame, \
-                please check that the webcam is connected.") from frame_err
-
-        if success:
-            frame = self.process_frame(frame)
-            out = frame.copy()
-            # Obtains the pose of the object on the
-            # frame and overlays the object.
-            transformation = self._detect_and_get_pose(frame, useflow=useflow,
-                                                       outlier_method=outlier_method, out=out)
-
         while True:
 
             try:
@@ -754,7 +742,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
             cv.imshow(window, self.img)
             # Display the black frame window that shows a
             # 3D drawing of the object
-            cv.imshow('image', self.draw_frame)
+            # cv.imshow('image', self.draw_frame)
 
             if useflow:
                 cv.imshow('Tracker', cv.resize(
@@ -762,5 +750,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
             # if ESC clicked, break the loop
             if cv.waitKey(1) == 27:
+                if self.calib_pentip:
+                    np.savez("poses", rmats=self.rmats, tvecs=self.tvecs)
                 cv.destroyAllWindows()
                 break

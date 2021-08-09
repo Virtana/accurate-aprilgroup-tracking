@@ -96,7 +96,7 @@ class TransformHelper():
         return apply_tran_mat
 
     def get_reprojection_error(self, obj_points: np.ndarray, img_points: np.ndarray,
-                               transformation: Tuple[np.ndarray, np.ndarray]) -> float:
+                               rvecs: np.ndarray, tvecs: np.ndarray) -> float:
         """Calculates the reprojection error betwen
         the object and image points given the object pose.
         """
@@ -105,8 +105,8 @@ class TransformHelper():
         # points and transformation given.
         project_points, _ = cv.projectPoints(
             obj_points,
-            transformation[0],
-            transformation[1],
+            rvecs,
+            tvecs,
             self.mtx,
             self.dist)
 
