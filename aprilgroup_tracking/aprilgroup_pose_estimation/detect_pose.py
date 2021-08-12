@@ -25,7 +25,7 @@ from aprilgroup_pose_estimation.transform_helper import TransformHelper
 from aprilgroup_pose_estimation.draw import Draw
 
 
-class DetectAndGetPose(TransformHelper, Draw):
+class PoseDetector(TransformHelper, Draw):
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
