@@ -7,7 +7,7 @@ from pathlib import Path
 import argparse
 from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration
-from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
+from aprilgroup_pose_estimation.detect_pose import PoseDetector
 
 
 def obtain_argparsers():
@@ -80,7 +80,7 @@ def main():
     mtx, dist = calibrate.mtx, calibrate.dist
 
     # Detect and Estimate Pose of the Dodecahedron
-    det_pose = DetectAndGetPose(det_pose_logger, mtx, dist, args.enhanceape)
+    det_pose = PoseDetector(det_pose_logger, mtx, dist, args.enhanceape)
     if args.opticalflow:
         det_pose.overlay_camera(args.opticalflow, args.outliermethod)
     else:

@@ -30,7 +30,7 @@ from aprilgroup_pose_estimation.draw import Draw
 from aprilgroup_pose_estimation.optical_flow import OpticalFlow
 
 
-class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
+class PoseDetector(TransformHelper, Draw, OpticalFlow):
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
