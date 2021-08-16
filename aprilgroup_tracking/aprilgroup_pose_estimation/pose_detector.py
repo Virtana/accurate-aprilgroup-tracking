@@ -12,7 +12,7 @@ examples.
 
         useflow = True
         det_pose = DetectAndGetPose(det_pose_logger, mtx, dist)
-        det_pose.overlay_camera(useflow)
+        det_pose.video_testing(useflow)
 """
 
 import json
@@ -633,32 +633,35 @@ class PoseDetector(TransformHelper, Draw, OpticalFlow):
 
         return frame
 
-    def overlay_camera(self, useflow, outlier_method) -> None:
-        """
-
-        Creates a new camera window, to show both the pose estimation boxes
-        drawn on the apriltags, and projections overlayed onto the
-        incoming frames. This will allow us to quickly see the limitations
-        of the baseline approach, i.e. when detection fails.
+    def video_testing(self, src, useflow, outlier_method) -> None:
+        """ Used to test APE against ICT and DPR.
+        The frame counts provides data for a bar chart analysis.
 
         Args:
-        frame:
+        src:
             Each frame from the camera
+        useflow:
+            If True, optical flow is used, else standard APE is used
+        outlier_method:
+            Outlier method used if optical flow is implemented
 
         Returns:
-        Two video captured windows, one displays the object and the points
-        returned from the pose, overlaid over the object, the
-        other displays the 3D drawing of the object pose.
+        The count for the markersa and corresponding frames detected,
+        as well as the total amount of frames.
         """
 
+        det_markers = 0
+        det_frames = 0
+        tot_frames = 0
+
         # Create a cv window to show images
-        window = 'Camera'
+        window = 'Dodecahedron Pose Estimation'
         cv.namedWindow(window)
 
         # Open the first camera to get the video stream and the first frame
         # Change based on which webcam is being used
         # It is normally "0" for the primary webcam
-        cap = cv.VideoCapture("/dev/video2", cv.CAP_V4L2)
+        cap = cv.VideoCapture(src)
 
         if not cap.isOpened():
             raise OSError("Error opening webcam, please check that the webcam \
@@ -682,8 +685,11 @@ class PoseDetector(TransformHelper, Draw, OpticalFlow):
                 out = frame.copy()
                 # Obtains the pose of the object on the
                 # frame and overlays the object.
-                transformation = self._detect_and_get_pose(frame, useflow=useflow,
+                tag_ids, transformation = self._detect_and_get_pose(frame, useflow=useflow,
                                                            outlier_method=outlier_method, out=out)
+                if tag_ids:
+                    det_markers += len(tag_ids)
+                    det_frames += 1
             else:
                 break
 
@@ -717,9 +723,13 @@ class PoseDetector(TransformHelper, Draw, OpticalFlow):
                 cv.imshow('Tracker', cv.resize(
                     out, (out.shape[1]//2, out.shape[0]//2)))
 
+            tot_frames += 1
+
             # if ESC clicked, break the loop
             if cv.waitKey(1) == 27:
                 if self.calib_pentip:
                     np.savez("poses", rmats=self.rmats, tvecs=self.tvecs)
                 cv.destroyAllWindows()
                 break
+
+        return det_markers, det_frames, tot_frames

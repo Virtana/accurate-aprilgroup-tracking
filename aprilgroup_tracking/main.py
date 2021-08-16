@@ -101,10 +101,10 @@ def main():
 
     # Detect and Estimate Pose of the Dodecahedron
     det_pose = PoseDetector(det_pose_logger, mtx, dist, args.enhanceape, args.calibratepentip)
-    if args.opticalflow:
-        det_pose.overlay_camera(args.opticalflow, args.outliermethod)
-    else:
-        det_pose.overlay_camera(args.opticalflow, None)
+    # if args.opticalflow:
+    #     det_pose.video_testing("/dev/video2", args.opticalflow, args.outliermethod)
+    # else:
+    #     det_pose.video_testing("/dev/video2", args.opticalflow, None)
 
     if args.calibratepentip:
         # Pen-tip Calibration Logs
@@ -129,8 +129,8 @@ def main():
         obtain_drawing.live_drawing()
 
     # Execute the experiments
-    ex_exp = ExperimentExecuter(experiment_logger, mtx, dist, args.opticalflow)
-    ex_exp.execute("Charts")
+    # ex_exp = ExperimentExecuter(experiment_logger, mtx, dist, args.opticalflow)
+    # ex_exp.execute("Charts")
 
 
 if __name__ == "__main__":

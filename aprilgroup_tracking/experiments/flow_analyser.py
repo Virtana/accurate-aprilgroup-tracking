@@ -24,15 +24,15 @@ class FlowAnalyser:
 
         experiments_dir = 'aprilgroup_tracking/experiments/test_footage'
         results_dir = 'aprilgroup_tracking/experiments/results/detections'
+        try:
+            if not Path(results_dir).exists:
+                Path.mkdir(results_dir)
+        except IsADirectoryError as no_results_dir:
+            raise ValueError("Could not create log directory") from no_results_dir
 
-        experiments = glob.glob("aprilgroup_tracking/experiments/test_footage/videos")
-
-        # experiments = glob.glob(experiments_dir)
-        filepath = Path(experiments_dir) / 'videos'
-        print("expss", filepath)
-
-        for exp in filepath:
-            print("exp", exp)
+        video_path = Path(experiments_dir) / 'videos'
+        
+        for path, _, files in os.walk(video_path):
             output = os.path.join(results_dir)
 
             try:
@@ -41,41 +41,19 @@ class FlowAnalyser:
             except IsADirectoryError as no_result_error:
                 raise ValueError("Could not create result directory") from no_result_error
 
-            self.run_experiment(exp, det_pose, output=output)
+            self.run_experiment(path, files, det_pose, output=output)
 
         rname =  results_dir.split('/')[-1]
         fig = self.plot_results(results_dir)
         fname = rname + '.jpeg'
         fig.savefig(os.path.join(results_dir, fname))
 
-        # for path, _, files in os.walk(result_path):
-        #     for file in files:
-        #         filepath = Path(path) / file
-        #         print("r", filepath)
-        #         rname =  file.split('/')[-1]
-        #         fig = plot_results(file)
-        #         fname = rname + '.jpeg'
-        #         fig.savefig(os.path.join(results_dir, fname))
-
-        # print("results", results)
-        # for r in results:
-        #     print("r", r)
-        #     rname =  r.split('/')[-1]
-        #     fig = plot_results(r)
-        #     fname = rname + '.jpeg'
-        #     fig.savefig(os.path.join(results_dir, fname))
-
-
-    def run_experiment(self, footage_dir, det_pose, output=None):
+    def run_experiment(self, path, footage_dir, det_pose, output=None):
         """ Run experiments for APE, ICT.
         """
-
-        fnames = glob.glob(os.path.join(footage_dir, '*.webm'))
-        print(os.path.join(footage_dir, '*.webm'))
-        print("fnames", fnames)
-
+        fnames = glob.glob(os.path.join(path, '*.webm'))
         for f in fnames:
-            print("f", f)
+            print("path weee", f)
             test_name = os.path.splitext(os.path.basename(f))[0]
             self.run_trial(f, "no_flow" + test_name, output, useflow=False, tracker=det_pose)
             self.run_trial(f, "flow" + test_name, output, useflow=True, tracker=det_pose)
@@ -83,15 +61,13 @@ class FlowAnalyser:
     def run_trial(self, fname, test_name, output, useflow=True, tracker=None):
         """Initiate the experiements and save the results.
         """
+
         if tracker is None:
             raise Exception("no tracker")
-        # tag = 'flow' if useflow else 'noflow'
-        # vout_name = os.path.join(output , test_name + '_' + tag + '_.avi')
         det_markers, det_frames, tot_frames = tracker.video_testing(fname, useflow=useflow, outlier_method="opencv")
         self.save_results(output, test_name, useflow, det_markers, det_frames, tot_frames)
 
-
-    def save_results(output_dir, test_name, useflow, det_markers, det_frames, tot_frames):
+    def save_results(self, output_dir, test_name, useflow, det_markers, det_frames, tot_frames):
         """Save experiment results.
         """
         data = {
@@ -105,13 +81,11 @@ class FlowAnalyser:
         np.save(fname, data, allow_pickle=True)
             
 
-    def plot_results(results_dir):
+    def plot_results(self, results_dir):
         """Plot the resuls in a bar graph.
         """
 
         fnames = glob.glob("aprilgroup_tracking/experiments/results/detections/*.npy")
-        # fnames = results_dir
-        print("fnames", fnames)
         det_markers_flow = []
         det_markers_noflow = []
         det_frames_flow = []
@@ -120,7 +94,6 @@ class FlowAnalyser:
         tot_frames_noflow = []
 
         for f in fnames:
-            print("f", f)
             data = np.load(f, allow_pickle=True).item()
             if data['useflow']:
                 det_markers_flow.append(data['det_markers'])
@@ -131,10 +104,7 @@ class FlowAnalyser:
                 det_frames_noflow.append(data['det_frames'])
                 tot_frames_noflow.append(data['tot_frames'])
 
-        # TODO: Put blue for DPR?
-
-        print("det markers", det_markers_flow)
-        print("det markers", det_markers_noflow)
+        # TODO: Put blue for DPR
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10,5))
         fig.tight_layout(pad=3)
         ax[0].set_title('Success At Tracking At Least One Marker Per Frame')
