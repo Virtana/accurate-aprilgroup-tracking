@@ -45,7 +45,7 @@ class Calibration:
     """
 
     _INTRINSIC_PARAMETERS_FILE = "aprilgroup_tracking/calibration/CameraParams.npz"
-    _IMAGES_FOLDER = "aprilgroup_tracking/calibration/images"
+    _IMAGES_FOLDER = "aprilgroup_tracking/calibration/images_usb"
 
     def __init__(self, logger: Logger) -> None:
         self.logger = logger

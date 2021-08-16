@@ -8,8 +8,9 @@ import argparse
 from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration
 from calibration.calibrate_pentip import PenTipCalibrator
-from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
+from aprilgroup_pose_estimation.pose_detector import PoseDetector
 from drawing.obtain_drawing import ObtainDrawing
+from experiments.exp_executer import ExperimentExecuter
 
 
 def obtain_argparsers():
@@ -69,10 +70,7 @@ def main():
     log_directory = "logs"
     try:
         if not Path(log_directory).exists:
-            print("hmm")
             Path.mkdir(log_directory)
-        else:
-            print("wee")
     except IsADirectoryError as no_log_error:
         raise ValueError("Could not create log directory") from no_log_error
 
@@ -88,6 +86,10 @@ def main():
     draw_logger = CustomLogger(
         log_file=log_directory+"/drawing_logs",
         name="drawing_logs")
+    # Experiment Logs
+    experiment_logger = CustomLogger(
+        log_file=log_directory+"/experiment_logs",
+        name="experiment_logs")
 
     # If Camera Parameters already exists,
     # load them, else calculate them by calibrating the camera.
@@ -98,7 +100,7 @@ def main():
     mtx, dist = calibrate.mtx, calibrate.dist
 
     # Detect and Estimate Pose of the Dodecahedron
-    det_pose = DetectAndGetPose(det_pose_logger, mtx, dist, args.enhanceape, args.calibratepentip)
+    det_pose = PoseDetector(det_pose_logger, mtx, dist, args.enhanceape, args.calibratepentip)
     if args.opticalflow:
         det_pose.overlay_camera(args.opticalflow, args.outliermethod)
     else:
@@ -125,6 +127,10 @@ def main():
     if args.draw:
         obtain_drawing = ObtainDrawing(draw_logger, det_pose)
         obtain_drawing.live_drawing()
+
+    # Execute the experiments
+    ex_exp = ExperimentExecuter(experiment_logger, mtx, dist, args.opticalflow)
+    ex_exp.execute("Charts")
 
 
 if __name__ == "__main__":

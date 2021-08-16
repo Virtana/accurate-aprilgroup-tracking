@@ -118,7 +118,7 @@ class Draw():
                 5, cv.LINE_AA)
 
     def draw_squares_and_3d_pts(self, img: np.ndarray, draw_frame: np.ndarray,
-                                imgpts: np.ndarray) -> None:
+                                imgpts: np.ndarray, colour) -> None:
         """Extracts the bounding box (x, y)-image points
         returned from cv:projectPoints() for the AprilGroup
         and convert each of the (x, y)-coordinate pairs to integers.
@@ -148,9 +148,10 @@ class Draw():
         # overlay onto the dodecahedron object itself.
         for i in ipoints:
             if i[1] >= 0 and i[1] < 720 and i[0] >= 0 and i[0] < 1280:
-                cv.circle(img, (i[0], i[1]), 5, (0, 0, 255), -1)
+                cv.circle(img, (i[0], i[1]), 5, colour, -1)
 
-        self.draw_2d_pts(draw_frame, imgpts)
+        if draw_frame is not None:
+            self.draw_2d_pts(draw_frame, imgpts)
 
     @staticmethod
     def draw_corners(img: np.ndarray, detection: apriltag.Detection) -> None:

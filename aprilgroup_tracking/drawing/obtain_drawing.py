@@ -5,7 +5,7 @@ import numpy as np
 import cv2 as cv
 import time
 from drawing.plane_intersection import PlaneIntersection
-from drawing.plane_points_finder import ObtainPlanePoints
+from drawing.plane_points_finder import PlanePointsFinder
 from drawing.dynamic_plotter import DynamicPlotter
 
 
@@ -31,7 +31,7 @@ class ObtainDrawing(PlaneIntersection):
         """
         """
         
-        obtain_plane_pts = ObtainPlanePoints(self.logger, self.det_pose.mtx, self.det_pose.dist)
+        obtain_plane_pts = PlanePointsFinder(self.logger, self.det_pose.mtx, self.det_pose.dist)
         if not obtain_plane_pts.try_load_world_coords():
             obtain_plane_pts.get_points()
             obtain_plane_pts.load_world_coords()

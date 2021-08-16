@@ -7,10 +7,10 @@ from typing import Tuple
 import glob
 import numpy as np
 import cv2 as cv
-from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
+from aprilgroup_pose_estimation.pose_detector import PoseDetector
 
 
-class PenTipCalibrator(DetectAndGetPose):
+class PenTipCalibrator(PoseDetector):
     """Estimates the pen tip position c and sphere center c'.
 
     To calibrate the pen tip position, the object poses obtained from the DodecaPen
@@ -41,13 +41,13 @@ class PenTipCalibrator(DetectAndGetPose):
         tvecs: Translational Vectors obtained from cv2:solvePnP()
     """
 
-    def __init__(self, logger, rmats, tvecs, det_pose: DetectAndGetPose):
+    def __init__(self, logger, rmats, tvecs, det_pose: PoseDetector):
         self.logger = logger
-        if not type(det_pose) == DetectAndGetPose:
+        if not type(det_pose) == PoseDetector:
             raise ValueError('Parameter det_pose must be of type DetectAndGetPose.')
         self.det_pose = det_pose
-        # if not rmats and not tvecs:
-        #     raise ValueError("The rotation matrices and translation vectors must be supplied.")
+        if not rmats and not tvecs:
+            raise ValueError("The rotation matrices and translation vectors must be supplied.")
         self._rmats = rmats
         self._tvecs = tvecs
 
@@ -137,7 +137,7 @@ class PenTipCalibrator(DetectAndGetPose):
 
         for f in frames:
             frame = cv.imread(f, -1)
-            frame = self.det_pose.undistort_frame(frame)
+            frame = self.det_pose.undistort_frame(frame, self.det_pose.mtx, self.det_pose.dist)
             transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
 
             if not transform[0].size == 0 and not transform[1].size == 0:
@@ -184,7 +184,7 @@ class PenTipCalibrator(DetectAndGetPose):
                     please check that the webcam is connected.") from frame_err
 
             if success:
-                frame = self.det_pose.undistort_frame(frame)
+                frame = self.det_pose.undistort_frame(frame, self.det_pose.mtx, self.det_pose.dist)
                 # Obtains the pose of the object on the
                 # frame and overlays the object.
                 transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)

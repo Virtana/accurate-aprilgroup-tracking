@@ -30,7 +30,7 @@ from aprilgroup_pose_estimation.draw import Draw
 from aprilgroup_pose_estimation.optical_flow import OpticalFlow
 
 
-class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
+class PoseDetector(TransformHelper, Draw, OpticalFlow):
     """Detects AprilGroup and Obtains Pose of object with AprilGroup Attached.
 
     This Class detects AprilTags on an object (dodecahedron in this case).
@@ -414,7 +414,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         return imgpoints_arr, objpoints_arr, tag_ids_arr
 
-    def _project_draw_points(self, transformation: Tuple[np.ndarray, np.ndarray]) -> None:
+    def _project_draw_points(self, transformation: Tuple[np.ndarray, np.ndarray], colour) -> None:
         """Projects the 3D points onto the image plane and draws those points.
 
         Args:
@@ -438,10 +438,10 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         self.logger.info("Drawing the points...")
         # Draw the image points overlay onto the object and the 3D Drawing
-        self.draw_squares_and_3d_pts(self.img, self.draw_frame, imgpts)
+        self.draw_squares_and_3d_pts(self.img, self.draw_frame, imgpts, colour)
 
     def _estimate_pose(self, imgpoints_arr: List[np.ndarray],
-                       objpoints_arr: List[np.ndarray]) -> None:
+                       objpoints_arr: List[np.ndarray], got_corners: bool) -> None:
         """Obtains the pose of the dodecahedron.
 
         Args:
@@ -459,6 +459,11 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         onto the dodecahedron and the 3D drawing to observe
         and track the dodecahedron.
         """
+
+        if got_corners:
+            colour = (139, 0, 139)
+        else:
+            colour = (0, 0, 255)
 
         transformation = (np.array([]), np.array([]))
 
@@ -530,7 +535,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                     self.logger.info(
                         "Projecting 3D points onto the image plane.")
                     # Project the 3D points onto the image plane
-                    self._project_draw_points(transformation)
+                    self._project_draw_points(transformation, colour)
 
                     # If this is the second frame,
                     # there would be no velocity or acc calculation
@@ -584,6 +589,8 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
         object and the 3D drawing of the dodecahedron in a seperate window.
         """
 
+        got_corners = False
+
         # Get the frame from the Video
         self.img = frame
 
@@ -612,9 +619,9 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
                 gray, imgpoints_arr, objpoints_arr, tag_ids)
 
         # Using those points, estimate the pose of the dodecahedron
-        transformation = self._estimate_pose(imgpoints_arr, objpoints_arr)
+        transformation = self._estimate_pose(imgpoints_arr, objpoints_arr, got_corners)
 
-        return transformation
+        return tag_ids, transformation
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """Undistorts Frame (other processing, if needed, can go here)
