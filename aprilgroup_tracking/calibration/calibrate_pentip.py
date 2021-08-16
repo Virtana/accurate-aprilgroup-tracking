@@ -138,7 +138,7 @@ class PenTipCalibrator(PoseDetector):
         for f in frames:
             frame = cv.imread(f, -1)
             frame = self.det_pose.undistort_frame(frame, self.det_pose.mtx, self.det_pose.dist)
-            transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
+            tag_ids, transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
 
             if not transform[0].size == 0 and not transform[1].size == 0:
                 imagePoints, _ = cv.projectPoints(np.float32(fixed_tip), transform[0], transform[1], self.det_pose.mtx, self.det_pose.dist)
@@ -187,7 +187,7 @@ class PenTipCalibrator(PoseDetector):
                 frame = self.det_pose.undistort_frame(frame, self.det_pose.mtx, self.det_pose.dist)
                 # Obtains the pose of the object on the
                 # frame and overlays the object.
-                transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
+                tag_ids, transform = self.det_pose._detect_and_get_pose(frame, check_opt_flow, outliermethod, out=None)
 
                 if not transform[0].size == 0 and not transform[1].size == 0:
                     imagePoints, _ = cv.projectPoints(np.float32(fixed_tip), transform[0], transform[1], self.det_pose.mtx, self.det_pose.dist)
