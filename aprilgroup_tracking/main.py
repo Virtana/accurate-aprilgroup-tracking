@@ -9,6 +9,7 @@ from logging_results.create_logs import CustomLogger
 from calibration.calibrate_camera import Calibration
 from calibration.calibrate_pentip import PenTipCalibrator
 from aprilgroup_pose_estimation.detect_pose import DetectAndGetPose
+from drawing.obtain_drawing import ObtainDrawing
 
 
 def obtain_argparsers():
@@ -46,6 +47,11 @@ def obtain_argparsers():
         action='store_true',
         help='If used, the pen tip of the Dodecahedron will be calibrated.')
 
+    parser.add_argument('--draw', dest='draw',
+                action='store_true',
+                help="Allows user to draw using the AprilGroup Object.",
+                default=False)
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -63,7 +69,10 @@ def main():
     log_directory = "logs"
     try:
         if not Path(log_directory).exists:
+            print("hmm")
             Path.mkdir(log_directory)
+        else:
+            print("wee")
     except IsADirectoryError as no_log_error:
         raise ValueError("Could not create log directory") from no_log_error
 
@@ -75,6 +84,10 @@ def main():
     det_pose_logger = CustomLogger(
         log_file=log_directory+"/detection_pose_estimation_logs",
         name="detection_pose_estimation_logs")
+    # Drawing Logs
+    draw_logger = CustomLogger(
+        log_file=log_directory+"/drawing_logs",
+        name="drawing_logs")
 
     # If Camera Parameters already exists,
     # load them, else calculate them by calibrating the camera.
@@ -108,6 +121,10 @@ def main():
         # Testing the fixed tip position
         pivot_calib.test_pentip_calib_img(fixed_tip2, args.opticalflow, args.outliermethod)
         pivot_calib.test_pentip_calib_video(fixed_tip2, args.opticalflow, args.outliermethod)
+
+    if args.draw:
+        obtain_drawing = ObtainDrawing(draw_logger, det_pose)
+        obtain_drawing.live_drawing()
 
 
 if __name__ == "__main__":

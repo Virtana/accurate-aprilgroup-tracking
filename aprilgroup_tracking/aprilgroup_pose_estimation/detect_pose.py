@@ -158,44 +158,6 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         return extrinsics
 
-    def undistort_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Undistorts the camera frame given the camera matrix and
-        distortion values from camera calibration
-
-        Args:
-        frame:
-            Current camera frame.
-        self.mtx:
-            Camera Matrix.
-        self.dist:
-            Distortion Coefficients from Calibrated Camera.
-
-        Returns:
-        A Numpy Array that contains the undistorted frame.
-        """
-
-        # Height and Width of the camera frame
-        height, width = frame.shape[:2]
-
-        # Get the camera matrix and distortion values
-        new_camera_matrix, roi = cv.getOptimalNewCameraMatrix(
-                                                            self.mtx,
-                                                            self.dist,
-                                                            (width, height),
-                                                            1,
-                                                            (width, height)
-                                                            )
-
-        # Undistort Frame
-        dst = cv.undistort(
-            frame, self.mtx, self.dist, None, new_camera_matrix)
-
-        # Crop the image
-        x_val, y_val, width, height = roi
-        dst = dst[y_val:y_val+height, x_val:x_val+width]
-
-        return dst
-
     def get_all_points(self, extrinsics: Dict) -> np.ndarray:
         """Get all the points from the .json file and obtain the object points.
 
@@ -660,7 +622,7 @@ class DetectAndGetPose(TransformHelper, Draw, OpticalFlow):
 
         # Undistorts the frame
         if self.dist is not None:
-            frame = self.undistort_frame(frame)
+            frame = self.undistort_frame(frame, self.mtx, self.dist)
 
         return frame
 

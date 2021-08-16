@@ -37,6 +37,44 @@ class TransformHelper():
 
         return sample_dict
 
+    def undistort_frame(self, frame: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.ndarray:
+        """Undistorts the camera frame given the camera matrix and
+        distortion values from camera calibration
+
+        Args:
+        frame:
+            Current camera frame.
+        self.mtx:
+            Camera Matrix.
+        self.dist:
+            Distortion Coefficients from Calibrated Camera.
+
+        Returns:
+        A Numpy Array that contains the undistorted frame.
+        """
+
+        # Height and Width of the camera frame
+        height, width = frame.shape[:2]
+
+        # Get the camera matrix and distortion values
+        new_camera_matrix, roi = cv.getOptimalNewCameraMatrix(
+                                                            mtx,
+                                                            dist,
+                                                            (width, height),
+                                                            1,
+                                                            (width, height)
+                                                            )
+
+        # Undistort Frame
+        dst = cv.undistort(
+            frame, mtx, dist, None, new_camera_matrix)
+
+        # Crop the image
+        x_val, y_val, width, height = roi
+        dst = dst[y_val:y_val+height, x_val:x_val+width]
+
+        return dst
+
     @staticmethod
     def get_initial_pts(tagsize: float) -> np.ndarray:
         """Obtains the initial 3D points in space of AprilTags.
